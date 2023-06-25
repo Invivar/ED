@@ -1,0 +1,157 @@
+<component name="InspectionProjectProfileManager">
+  <profile version="1.0">
+    <option name="myName" value="Project Default" />
+    <inspection_tool class="AlphaUnsortedPropertiesFile" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="DuplicatePropertyInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="EditorConfigCharClassLetterRedundancy" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigCharClassRedundancy" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigDeprecatedDescriptor" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigEmptyHeader" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigEmptySection" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigEncoding" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigHeaderUniqueness" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigKeyCorrectness" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigListAcceptability" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigMissingRequiredDeclaration" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigNoMatchingFiles" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigNumerousWildcards" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WEAK WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigOptionRedundancy" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigPairAcceptability" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigPartialOverride" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WEAK WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigPatternEnumerationRedundancy" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigPatternRedundancy" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigReferenceCorrectness" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigRootDeclarationCorrectness" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigRootDeclarationUniqueness" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigShadowedOption" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigShadowingOption" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigSpaceInHeader" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WEAK WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigUnexpectedComma" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigUnusedDeclaration" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigValueCorrectness" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigValueUniqueness" enabled="true" level="ERROR" enabled_by_default="true">
+      <scope name="Open Files" level="ERROR" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EditorConfigWildcardRedundancy" enabled="true" level="WARNING" enabled_by_default="true">
+      <scope name="Open Files" level="WARNING" enabled="true" />
+    </inspection_tool>
+    <inspection_tool class="EmptyDirectory" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="InconsistentLineSeparators" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="IncorrectFormatting" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="LongLine" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="ProblematicWhitespace" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyArgumentEqualDefaultInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyAugmentAssignmentInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyClassicStyleClassInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyMandatoryEncodingInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyMissingOrEmptyDocstringInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyMissingTypeHintsInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true" />
+    <inspection_tool class="PyPep8Inspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="W605" />
+          <option value="E501" />
+          <option value="E702" />
+          <option value="E401" />
+          <option value="E722" />
+          <option value="E502" />
+          <option value="E402" />
+          <option value="E101" />
+          <option value="W191" />
+          <option value="E203" />
+          <option value="E201" />
+          <option value="E128" />
+          <option value="E202" />
+          <option value="E221" />
+          <option value="E302" />
+          <option value="W292" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyPep8NamingInspection" enabled="true" level="WEAK WARNING" enabled_by_default="true">
+      <option name="ignoredErrors">
+        <list>
+          <option value="N802" />
+          <option value="N806" />
+          <option value="N812" />
+          <option value="N803" />
+          <option value="N814" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="PyUnresolvedReferencesInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredIdentifiers">
+        <list>
+          <option value="os._exit" />
+        </list>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="RestRoleInspection" enabled="true" level="WARNING" enabled_by_default="true">
+      <option name="ignoredRoles">
+        <value>
+          <list size="0" />
+        </value>
+      </option>
+    </inspection_tool>
+    <inspection_tool class="SpellCheckingInspection" enabled="false" level="TYPO" enabled_by_default="false">
+      <option name="processCode" value="true" />
+      <option name="processLiterals" value="true" />
+      <option name="processComments" value="true" />
+    </inspection_tool>
+    <inspection_tool class="TodoComment" enabled="true" level="INFORMATION" enabled_by_default="true" />
+    <inspection_tool class="UnusedDefine" enabled="true" level="WARNING" enabled_by_default="true" />
+    <inspection_tool class="UseEllipsisInPropertyInspection" enabled="true" level="WARNING" enabled_by_default="true" />
+  </profile>
+</component>
