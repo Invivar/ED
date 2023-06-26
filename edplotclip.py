@@ -7,6 +7,8 @@ TODO:
     - MySQL requests
     - Pinned Locations with short Notes (I have no idea what I have saved in the tabs in the game)
     - who knows
+    - connected or not
+    - login client ect.
 """
 import os
 import tkinter as tk
@@ -26,8 +28,16 @@ import math
 from copy import deepcopy as dc
 import requests
 from bs4 import BeautifulSoup
-import mysql.connector
-import password
+from PIL import Image, ImageTk
+from ctypes import windll
+import gc
+
+windll.shcore.SetProcessDpiAwareness(1)
+windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), 6)
+gc.set_threshold(1, 10, 10)
+
+# import mysql.connector
+# import password
 
 info = '''F2 - SETTINGS
 F3 - INFO AT THE TOP + COPY DESTINATION
@@ -265,6 +275,42 @@ def _selected_item_action(event, widget):
 label_set = {'side': 'left', 'padx': 10, 'pady': 3}
 widget_set = {'side': 'right', 'fill': 'x', 'ipady': 1, 'ipadx': 100, 'padx': 5}
 entry_set = {'fill': 'x', 'ipady': 1, 'ipadx': 100, 'padx': 5}
+sites = {'Inara': {'link': 'https://inara.cz/elite/news/',
+                   'desc': 'THIS WEBSITE IS NOT AN OFFICIAL TOOL FOR THE GAME ELITE: DANGEROUS AND IS NOT '
+                           'AFFILIATED WITH FRONTIER DEVELOPMENTS. ALL INFORMATION PROVIDED IS BASED ON '
+                           'PUBLICLY AVAILABLE INFORMATION AND MAY NOT BE ENTIRELY ACCURATE.',
+                   'image': r'logo\inaralogo.png'},
+         'Roguey': {'link': 'https://roguey.co.uk/',
+                    'desc': 'Welcome to help section, in here you will find information, guides and more on '
+                            'Elite & Dangerous.',
+                    'image': r'logo\rogueylogo.png'},
+         'CMDR Tollbox': {'link': 'https://cmdrs-toolbox.com/',
+                          'desc': 'This site was created to help both new and old players in Elite Dangerous. '
+                                  'The site was created by Down To Earth Astronomy.',
+                          'image': r'logo\cmdrtoolbox.png'},
+         'Spansh - Plotter': {'link': 'https://www.spansh.co.uk/plotter/',
+                              'desc': 'This page will allow you to plot between two different star systems. '
+                                      'The result will show you every time you need to go to the galaxy map '
+                                      'in order to plot a new route '
+                                      '(for instance when you are at a neutron star)',
+                              'image': r'logo\spanch.png'},
+         'ED Legacy (I love it more)': {'link': 'http://edlegacy.iloveitmore.com.au/',
+                                        'desc': ' If you are selling, you want a high Sell Price '
+                                                'with a high Demand, if you are buying, you want a low Buy '
+                                                'Price and a high Supply.',
+                                        'image': r'logo\edlegacy.png'},
+         'Elite Dangerous Star Map': {'link': 'https://www.edsm.net',
+                                      'desc': 'EDSM (Elite Dangerous Star Map) was at first a community effort '
+                                              'to store and calculate systems coordinates around the Elite: '
+                                              'Dangerous galaxy.It is now the main API used by dozens of '
+                                              'software and websites to find systems, coordinates, information '
+                                              '(governement, allegiance, faction...) and celestial bodies '
+                                              '(types, materials...).',
+                                      'image': 'logo\edsmlogo.png'},
+         'Coriolis': {'link': 'https://coriolis.io/',
+                      'desc': 'Coriolis is a ship bulider for Elite: Dangrous.',
+                      'image': 'logo\coriolislogo.png'}
+         }
 
 
 class CombinedMenu(tk.Frame):
@@ -348,6 +394,7 @@ class CombinedEntry(tk.Frame):
         self.f2.pack(fill='x', side='right')
         self.entry = ttk.Entry(self.f2, width=50)
         self.entry.bind('<KeyRelease>', lambda e: self._request_mysql(e))
+        self.entry.bind('<Escape>', lambda e: self.listbox.place_forget())
         try:
             self.entry.insert(0, self.ship_pos)
         except TclError:
@@ -356,24 +403,34 @@ class CombinedEntry(tk.Frame):
         self.listbox = tk.Listbox(parent, relief='flat', width=200, height=100)
         self.scroll = ttk.Scrollbar(self.listbox, command=self.listbox.yview)
         self.listbox.configure(yscrollcommand=self.scroll.set)
+        self.listbox.bind('<Return>', lambda e: self._check_selection(e))
+        self.listbox.bind('<Double-Button-1>', lambda e: self._check_selection(e))
+        self.listbox.bind('<Escape>', lambda e: self.listbox.place_forget())
+
+    def _check_selection(self, event):
+        selected = str(event.widget.selection_get())
+        self.entry.delete(0, 'end')
+        self.entry.insert(0, selected)
+        self.listbox.place_forget()
 
     def _request_mysql(self, event):
-        text = event.widget.get()
-        command = f"SELECT name FROM ed.powerplay WHERE name REGEXP '^{text}'"
-        if len(text) >= 1:
-            plot_route.cursor.execute(command)
-            self.galactic_maps = plot_route.cursor.fetchall()
-            for i, item in enumerate(self.galactic_maps):
-                try:
-                    # noinspection PyTypeChecker
-                    self.galactic_maps[i] = item[0]
-                except Exception as e:
-                    print(e)
-            if self.galactic_maps is not None:
+        if str(event.keysym) != 'Escape':
+            text = event.widget.get()
+            command = f"SELECT name FROM ed.powerplay WHERE name REGEXP '^{text}'"
+            if len(text) >= 1:
+                # plot_route.cursor.execute(command)
+                # self.galactic_maps = plot_route.cursor.fetchall()
+                for i, item in enumerate(self.galactic_maps):
+                    try:
+                        # noinspection PyTypeChecker
+                        self.galactic_maps[i] = item[0]
+                    except Exception as e:
+                        print(e)
+                if self.galactic_maps is not None:
+                    self._check_database()
+            else:
+                self.galactic_maps = plot_route.galactic_maps
                 self._check_database()
-        else:
-            self.galactic_maps = []
-            self._check_database()
 
     def _check_database(self):
         if len(self.galactic_maps) > 0:
@@ -394,25 +451,118 @@ class CombinedEntry(tk.Frame):
         pass
 
 
+def _open_website(event, what):
+    if what:
+        link = event.widget.data
+    else:
+        link = event.widget.image
+    webbrowser.open(link)
+
+
 class CombinedFrame(tk.Frame):
 
     def __init__(self, parent):
         super().__init__(parent)
-        sites = {'Inara': 'https://inara.cz/elite/news/',
-                 'Roguey': 'https://roguey.co.uk/',
-                 'CMDR Tollbox': 'https://cmdrs-toolbox.com/',
-                 'Spansh - Plotter': 'https://www.spansh.co.uk/plotter/',
-                 'ED Legacy (I love it more)': 'http://edlegacy.iloveitmore.com.au/',
-                 }
+        self.canvas = tk.Canvas(self, height=528)
+        self.scrollbar = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
+        self.scroll_frame = tk.Frame(self.canvas)
+        self.scroll_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
+        self.canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
+        self.canvas.configure(yscrollcommand=self.scrollbar.set)
+        self.canvas.pack(side="left", fill="both", expand=True)
+        self.scrollbar.pack(side="right", fill="y")
         for name, link in sites.items():
-            label = ttk.Label(self, text=name, justify='left')
-            label.pack(fill='both', padx=5)
-            label.image = link  # yes, silly
-            label.bind('<Button-1>', lambda e: self._open_website(e))
+            frame = tk.Frame(self.scroll_frame)
+            frame.pack(fill='both', padx=5)
+            label = tk.Label(frame, text=name, justify='left', width=20, anchor='w')
+            label.pack(fill='both', padx=5, side='left')
+            label.image = link['link']  # yes, silly
+            label.bind('<Button-1>', lambda e: _open_website(e, 0))
+            tk.Label(frame, text=link['desc'], justify='left', wraplength=480).pack(side='left', fill='both')
+            load_image = Image.open(link['image'])
+            load_image.thumbnail((100, 100))
+            __image = ImageTk.PhotoImage(load_image)
+            img = tk.Label(frame, image=__image)
+            img.image = __image
+            img.pack(side='right', pady=2)
+            img.data = link['link']
+            img.bind('<Button-1>', lambda e: _open_website(e, 1))
+            ttk.Separator(self, orient='horizontal').pack(fill='x', padx=5)
 
-    def _open_website(self, event):
-        link = event.widget.image
-        webbrowser.open(link)
+
+class SettingWidget(ttk.Frame):
+    def __init__(self, parent, text, option):
+        super().__init__(parent)
+        self.option = option
+        self.boolvar = tk.BooleanVar()
+        self.select = ttk.Checkbutton(self, text=text, variable=self.boolvar,
+                                      command=lambda: self._setvar())
+        self.boolvar.set(value=self.option)
+        self.select.pack(label_set)
+        self.pack(fill='x')
+
+    def _setvar(self):
+        self.option = self.boolvar.get()
+        pass
+
+
+class ShortCuts(ttk.Frame):
+    def __init__(self, parent, text, option, shortcuts):
+        super().__init__(parent)
+        ttk.Label(self, text=text, justify='left', width=25).pack(side='left')
+        e1 = tk.Label(self, text=shortcuts[option], highlightbackground='grey', highlightthickness=1,
+                      width=10, anchor='e', bg='white')
+        e1.bind('<Motion>', lambda e: self._on_motion(e, 1))
+        e1.bind('<Button-1>', lambda e: self._set_clicked(e, 1))
+        e1.bind('<Double-1>', lambda e: self._set_clicked(e, 2))
+        e1.bind('<Leave>', lambda e: self._on_motion(e, 0))
+        e1.bind('<Key>', lambda e: self._validate(e))
+        e1.pack(side='left')
+        e1.clicked = False
+        e1.selected = False
+        self.shortcuts = shortcuts
+        self.option = option
+        self.pack(fill='x', padx=10, pady=2)
+
+    def _validate(self, event):
+        if event.widget.selected:
+            key = str(event.keysym).upper()
+            if key not in self.shortcuts.values():
+                self.shortcuts[self.option] = key
+                event.widget.selected = False
+                event.widget.configure(bg='white', text=key, anchor='e')
+                event.widget.grab_release()
+                """CHECKPOINT - CONNECT RESULTS TO CONFIG"""
+    def _set_clicked(self, event, mode):
+        if mode == 1:
+            event.widget.clicked = True
+            event.widget.focus_set()
+            event.widget.configure(highlightbackground='#6433FF')
+        elif mode == 2:
+            event.widget.configure(bg='#FCFFB7', text='<BindKey>', anchor='center')
+            event.widget.grab_set()
+            event.widget.selected = True
+
+    def _on_motion(self, event, _in):
+        if _in:
+            if not event.widget.clicked:
+                event.widget.configure(highlightbackground='black')
+            else:
+                event.widget.configure(highlightbackground='#6433FF')
+        else:
+            event.widget.configure(highlightbackground='grey')
+            event.widget.clicked = False
+
+
+class PartSettingFrame(tk.Frame):
+    def __init__(self, parent):
+        super().__init__(parent)
+        SettingWidget(self, text='Use local database (json)', option=plot_route.use_local_database)
+        ttk.Separator(self, orient='horizontal').pack(fill='x', padx=5, pady=2)
+        ShortCuts(self, text='Open Smart ED', shortcuts=plot_route.shortcuts, option='setting')
+        ShortCuts(self, text='Copy Next PyPlotter', shortcuts=plot_route.shortcuts, option='next')
+        ShortCuts(self, text='Copy Best Commodities', shortcuts=plot_route.shortcuts, option='shop')
+        ShortCuts(self, text='Exit App', shortcuts=plot_route.shortcuts, option='exit')
 
 
 class PlotPyperClip:
@@ -433,6 +583,10 @@ class PlotPyperClip:
         self.plot_route_from_csv = {}
         self.checked_systems = []
         self.interests = [1, 1, 0, 1, 0, 0, 0, 0, 1]
+        self.shortcuts = {'setting': 'F2',
+                          'next': 'F3',
+                          'shop': 'F4',
+                          'exit': 'F10'}
         self.ship_pos = None
         self.comparision_founded = False
         self.newest_log_file = ''
@@ -447,9 +601,12 @@ class PlotPyperClip:
         self.remaining = None
         self.close_thread = False
         self.key_manager = None
+        self.use_local_database = True
         self.zbior = {}
         self.drogie = {}
-        self.ok = False
+        self.open_commodity = False
+        self.commodity_error = False
+        self.check_commodity = False
         self.port = ''
         self.galactic_maps = {}
         self.galactic_maps_list = []
@@ -459,17 +616,17 @@ class PlotPyperClip:
         self.reference = 'omicron+capricorni+b'
         self.link = fr'http://edlegacy.iloveitmore.com.au/?action=' \
                     fr'{self.sell_or_buy}&commodity={self.commodity}&reference={self.reference}'
-        self.sql = mysql.connector.connect(host='localhost',
-                                           user='root',
-                                           password=password.my_pass)
-        self.cursor = self.sql.cursor(buffered=True)
+        # self.sql = mysql.connector.connect(host='localhost',
+        #                                    user='root',
+        #                                    password=password.my_pass)
+        # self.cursor = self.sql.cursor(buffered=True)
 
     def _close_all(self):
         self.close_thread = True
         if self.key_manager is not None:
             self.key_manager.stop()
-        self.cursor.close()
-        self.sql.close()
+        # self.cursor.close()
+        # self.sql.close()
         smart_gui(cmdr=self.cmdr)
         exit()
 
@@ -525,13 +682,14 @@ class PlotPyperClip:
             self.key_manager.join()
 
     def _check_pressed(self, *args):
-
+        """TODO:
+            - when gui opened prevent this actions"""
         if args[0] == Key.f2:
             self.wake_gui = True
         if args[0] == Key.f3:
             self._short_presentation()
         if args[0] == Key.f4:
-            self._start_commodities_thread()
+            self.check_commodity = True
         if args[0] == Key.f10:
             self._close_all()
 
@@ -552,7 +710,7 @@ class PlotPyperClip:
             self.page_content = requests.get(self.link, headers=self.headers).content
         except Exception as e:
             print(e)
-            smart_gui(mode=4)
+            self.commodity_error = True
             return False
         soup = BeautifulSoup(self.page_content, 'html.parser')
         tablica = soup.select('tbody')
@@ -568,12 +726,8 @@ class PlotPyperClip:
         reorganizacja = sorted(self.drogie.keys())
         self.port = self.drogie[reorganizacja[0]]
         pyperclip.copy(self.port[0])
-        self.ok = True
-        smart_gui(commodity=self.port, mode=1)
+        self.open_commodity = True
         pass
-
-    def _start_commodities_thread(self):
-        threading.Thread(target=self._check_commodities).start()
 
     def _short_presentation(self):
         self._define_next_system()
@@ -716,7 +870,10 @@ class PlotPyperClip:
         self.f2.pack()
         self.f3 = CombinedMenu(self.ntbkf_1, 'Select JSON  Neutron Route', 3, self.json_path)
         self.f3.pack()
-        self.ntbkf_1.pack()
+        ttk.Separator(self.ntbkf_1, orient='horizontal').pack(fill='x', padx=5, pady=2)
+        self.settings_gui = PartSettingFrame(self.ntbkf_1)
+        self.settings_gui.pack(fill='x')
+        self.ntbkf_1.pack(fill='x')
 
         self.ntbkf_2 = ttk.Frame(self.notebook)
         self.e1 = CombinedEntry(self.ntbkf_2, self.ship_pos, 'Select Start System')
@@ -769,7 +926,7 @@ class PlotPyperClip:
 
         self.ntbkf_5 = ttk.Frame(self.notebook)
         self.shortcut_frame = CombinedFrame(self.ntbkf_5)
-        self.shortcut_frame.pack(fill='x')
+        self.shortcut_frame.pack(fill='both')
         self.ntbkf_5.pack()
 
         self.notebook.add(self.ntbkf_1, text='Settings')
@@ -847,6 +1004,15 @@ class PlotPyperClip:
             if self.monitoring_route:
                 self.monitoring_route = False
                 self._check_pos()
+            if self.open_commodity:
+                self.open_commodity = False
+                smart_gui(commodity=self.port, mode=1)
+            if self.commodity_error:
+                self.commodity_error = False
+                smart_gui(mode=4)
+            if self.check_commodity:
+                self.check_commodity = False
+                self._check_commodities()
             if self.close_thread:
                 break
 
@@ -866,7 +1032,7 @@ class PlotPyperClip:
         """
         Start all threads
         """
-        # self._load_galactic_maps()  # this one need to be replaced with MySQL
+        self._load_galactic_maps()  # this one need to be replaced with MySQL
         self._before_startup()
         self._log_thread.start()
         self._keyboard_thread.start()
