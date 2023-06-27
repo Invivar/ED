@@ -17,9 +17,10 @@ from tkinter import ttk
 import re
 import threading
 
-from pynput.keyboard import Key, Listener
+from pynput.keyboard import Listener
 import time
 import json
+from json.decoder import JSONDecodeError
 from tkinter import filedialog
 import pyperclip
 from win32gui import GetWindowText, GetForegroundWindow
@@ -31,6 +32,7 @@ from bs4 import BeautifulSoup
 from PIL import Image, ImageTk
 from ctypes import windll
 import gc
+from multiprocessing import Pipe, Process, freeze_support
 
 windll.shcore.SetProcessDpiAwareness(1)
 windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), 6)
@@ -492,23 +494,25 @@ class CombinedFrame(tk.Frame):
 
 class SettingWidget(ttk.Frame):
     def __init__(self, parent, text, option):
+        print(parent, text, option)
         super().__init__(parent)
-        self.option = option
         self.boolvar = tk.BooleanVar()
         self.select = ttk.Checkbutton(self, text=text, variable=self.boolvar,
-                                      command=lambda: self._setvar())
-        self.boolvar.set(value=self.option)
+                                      command=self._setvar)
+        self.boolvar.set(value=option)
         self.select.pack(label_set)
         self.pack(fill='x')
 
     def _setvar(self):
-        self.option = self.boolvar.get()
+        plot_route.use_local_database = self.boolvar.get()
+        print('ok', self.boolvar.get(), plot_route.use_local_database)
         pass
 
 
 class ShortCuts(ttk.Frame):
     def __init__(self, parent, text, option, shortcuts):
         super().__init__(parent)
+
         ttk.Label(self, text=text, justify='left', width=25).pack(side='left')
         e1 = tk.Label(self, text=shortcuts[option], highlightbackground='grey', highlightthickness=1,
                       width=10, anchor='e', bg='white')
@@ -516,7 +520,7 @@ class ShortCuts(ttk.Frame):
         e1.bind('<Button-1>', lambda e: self._set_clicked(e, 1))
         e1.bind('<Double-1>', lambda e: self._set_clicked(e, 2))
         e1.bind('<Leave>', lambda e: self._on_motion(e, 0))
-        e1.bind('<Key>', lambda e: self._validate(e))
+        e1.bind('<KeyRelease>', lambda e: self._validate(e))
         e1.pack(side='left')
         e1.clicked = False
         e1.selected = False
@@ -526,13 +530,14 @@ class ShortCuts(ttk.Frame):
 
     def _validate(self, event):
         if event.widget.selected:
-            key = str(event.keysym).upper()
+            key = plot_route.current_k
             if key not in self.shortcuts.values():
                 self.shortcuts[self.option] = key
                 event.widget.selected = False
                 event.widget.configure(bg='white', text=key, anchor='e')
                 event.widget.grab_release()
                 """CHECKPOINT - CONNECT RESULTS TO CONFIG"""
+
     def _set_clicked(self, event, mode):
         if mode == 1:
             event.widget.clicked = True
@@ -565,9 +570,29 @@ class PartSettingFrame(tk.Frame):
         ShortCuts(self, text='Exit App', shortcuts=plot_route.shortcuts, option='exit')
 
 
+class Dswedrftgyhuji(object):
+    def __init__(self, pipe_connection):
+        self.pipe_connection = pipe_connection
+        self.galactic_maps = []
+        self._load_maps()
+        self._send_package()
+
+    def _send_package(self):
+        self.pipe_connection.send(self.galactic_maps)
+
+    def _load_maps(self):
+        with open(r'powerPlay.json') as maps:
+            self.galactic_maps_list = json.load(maps)
+            self.galactic_maps = [x['name'] for x in self.galactic_maps_list]
+            del self.galactic_maps_list
+            maps.close()
+            print("POWERPLAY LOAED")
+
+
 class PlotPyperClip:
 
     def __init__(self):
+        self.parent_pipe, self.child_pipe = Pipe()
         self.log_path = r''
         self.csv_path = r''
         self.json_path = r''
@@ -601,15 +626,15 @@ class PlotPyperClip:
         self.remaining = None
         self.close_thread = False
         self.key_manager = None
-        self.use_local_database = True
+        self.use_local_database = False
         self.zbior = {}
         self.drogie = {}
         self.open_commodity = False
         self.commodity_error = False
         self.check_commodity = False
+        self.processed = 0
         self.port = ''
         self.galactic_maps = {}
-        self.galactic_maps_list = []
         self.what = ['selling', 'buying']
         self.sell_or_buy = 'selling'
         self.commodity = 'platinum'
@@ -620,6 +645,8 @@ class PlotPyperClip:
         #                                    user='root',
         #                                    password=password.my_pass)
         # self.cursor = self.sql.cursor(buffered=True)
+        self.gui_started = False
+        self.current_k = ''
 
     def _close_all(self):
         self.close_thread = True
@@ -629,6 +656,29 @@ class PlotPyperClip:
         # self.sql.close()
         smart_gui(cmdr=self.cmdr)
         exit()
+
+    def _side_loop(self):
+        while True:
+            if self.process.is_alive():
+                try:
+                    self.galactic_maps = self.parent_pipe.recv()
+                except BrokenPipeError:
+                    break
+                except EOFError:
+                    break
+            if self.galactic_maps is not None:
+                print('MAPS LOADED FROM PIPE')
+                break
+
+    def request_pipe(self):
+
+        if self.use_local_database and self.processed == 0:
+            self.processed = 1
+            self.process = Process(target=Dswedrftgyhuji, args=(self.child_pipe,))  # Frustration
+            self.process.start()
+            threading.Thread(target=self._side_loop).start()
+        if self.gui_started:
+            self.root.after(100, self.request_pipe)  # some silly ehh
 
     def _before_startup(self):
         print('START UP')
@@ -678,19 +728,20 @@ class PlotPyperClip:
 
     def _run_listener(self):
         print('KEY SHORTCUTS LOADED')
-        with Listener(on_press=self._check_pressed) as self.key_manager:
+        with Listener(on_press=self._check_pressed, on_release=self._current_key) as self.key_manager:
             self.key_manager.join()
 
+    def _current_key(self, *args):
+        self.current_k = str(args[0])
+
     def _check_pressed(self, *args):
-        """TODO:
-            - when gui opened prevent this actions"""
-        if args[0] == Key.f2:
+        if str(args[0]) == self.shortcuts['setting'] and not self.gui_started:
             self.wake_gui = True
-        if args[0] == Key.f3:
+        if str(args[0]) == self.shortcuts['next']:
             self._short_presentation()
-        if args[0] == Key.f4:
+        if str(args[0]) == self.shortcuts['shop'] and not self.gui_started:
             self.check_commodity = True
-        if args[0] == Key.f10:
+        if str(args[0]) == self.shortcuts['exit'] and not self.gui_started:
             self._close_all()
 
     def _req(self, i, zbior, element):
@@ -820,15 +871,23 @@ class PlotPyperClip:
 
     def _load_config(self):
         with open('config.json') as json_manager:
-            pack = json.load(json_manager)
-            self.log_path = pack[0]
-            self.csv_path = pack[1]
-            self.json_path = pack[2]
+            try:
+                pack = json.load(json_manager)
+                self.log_path = pack[0]
+                self.csv_path = pack[1]
+                self.json_path = pack[2]
+                self.shortcuts = pack[3]
+                self.use_local_database = pack[4]
+            except JSONDecodeError as e:
+                print(e, 'in config.json')
+                exit(1)
+            except IndexError as n:
+                raise IndexError('Config file compromised')
         print('CONFIG FILE LOADED')
         print(f'CURRENT SETUP:\n\t-LOG\t{self.log_path}\n\t-CSV\t{self.csv_path}\n\t-JSON\t{self.json_path}')
 
     def _save_config(self):
-        pack = [self.log_path, self.csv_path, self.json_path]
+        pack = [self.log_path, self.csv_path, self.json_path, self.shortcuts, self.use_local_database]
         with open('config.json', 'w') as json_manager:
             json.dump(pack, json_manager, indent=2)
             json_manager.close()
@@ -854,9 +913,10 @@ class PlotPyperClip:
 
     # noinspection PyAttributeOutsideInit
     def _gui(self):
+        self.gui_started = True
         self.root = tk.Tk()
         self.root.iconbitmap(r'favicon.ico')
-        self.root.attributes('-topmost', 1)
+        # self.root.attributes('-topmost', 1)
         self.root.title('Smart ED Legacy')
         self.root.resizable(False, False)
 
@@ -943,7 +1003,9 @@ class PlotPyperClip:
         self.b2.pack(padx=5, pady=5, side='right')
         self.b3 = ttk.Button(self.f4, text='Help', command=_help)
         self.b3.pack(padx=5, pady=5, side='left')
+        self.root.after(0, self.request_pipe)
         self.root.mainloop()
+        self.gui_started = False
 
     def _set_commodity(self):
         self.sell_or_buy = self.c1.combo.get()
@@ -1018,24 +1080,13 @@ class PlotPyperClip:
 
             time.sleep(0.5)
 
-    def _load_maps(self):
-        with open(r'powerPlay.json') as maps:
-            self.galactic_maps_list = json.load(maps)
-            self.galactic_maps = [x['name'] for x in self.galactic_maps_list]
-            del self.galactic_maps_list
-            maps.close()
-
-    def _load_galactic_maps(self):
-        threading.Thread(target=self._load_maps).start()
-
     def run(self):
         """
         Start all threads
         """
-        self._load_galactic_maps()  # this one need to be replaced with MySQL
+        self._keyboard_thread.start()
         self._before_startup()
         self._log_thread.start()
-        self._keyboard_thread.start()
         if os.path.exists(self.json_path):
             self._read_json()
         else:
@@ -1046,5 +1097,6 @@ class PlotPyperClip:
 
 
 if __name__ == '__main__':
+    freeze_support()
     plot_route = PlotPyperClip()
     plot_route.run()
