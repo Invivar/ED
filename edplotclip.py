@@ -12,7 +12,6 @@ TODO:
 """
 import os
 import tkinter as tk
-import webbrowser
 from tkinter import ttk
 import re
 import threading
@@ -21,7 +20,6 @@ from pynput.keyboard import Listener
 import time
 import json
 from json.decoder import JSONDecodeError
-from tkinter import filedialog
 import pyperclip
 from win32gui import GetWindowText, GetForegroundWindow
 from tkinter import TclError
@@ -29,10 +27,18 @@ import math
 from copy import deepcopy as dc
 import requests
 from bs4 import BeautifulSoup
-from PIL import Image, ImageTk
 from ctypes import windll
 import gc
 from multiprocessing import Pipe, Process, freeze_support
+
+from settings.internal_data import products_list, headers
+from settings.widgets import label_set, entry_set
+from settings.separate_process import Dswedrftgyhuji
+
+from custom_widgets.frame import CombinedFrame
+from custom_widgets.menu import CombinedMenu
+from custom_widgets.combobox import CombinedCombobox
+from side_functions_and_gui.others import help, selected_item_action, smart_gui
 
 windll.shcore.SetProcessDpiAwareness(1)
 windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), 6)
@@ -40,456 +46,6 @@ gc.set_threshold(1, 10, 10)
 
 # import mysql.connector
 # import password
-
-info = '''F2 - SETTINGS
-F3 - INFO AT THE TOP + COPY DESTINATION
-F4 - ROUTE PROGRESS + COPY SELECTED DESTINATION
-F5 - COMMODITY + COPY DESTINATION
-F6 - SET COMMODITY
-F10 - CLOSE APP
-
-
-LOGS:
-ALL LOGS MOSTLY ARE STORED IN: D:\SteamLibrary\steamapps\common\Elite Dangerous\Products\elite-dangerous-64\Logs
-IF NOT PLEASE SELECT YOUR DESTINATION PATH   !!!
-
-CSV:
-PLEASE VISIT: https://www.spansh.co.uk/plotter/, FILL REQUIRED FIELDS AND DOWNLOAD CSV FILE
-
-JSON:
-AUTOMATICALLY CREATES A PATH, IF YOU WANT TO SAVE MULTIPLE PROGRESS, CREATE UNIQUE NAMES'''
-products_list = ["advancedcatalysers",
-                 "advancedmedicines",
-                 "agriculturalmedicines",
-                 "agronomictreatment",
-                 "alexandrite",
-                 "algae",
-                 "aluminium",
-                 "animalmeat",
-                 "animalmonitors",
-                 "aquaponicsystems",
-                 "articulationmotors",
-                 "atmosphericextractors",
-                 "autofabricators",
-                 "basicmedicines",
-                 "basicnarcotics",
-                 "battleweapons",
-                 "bauxite",
-                 "beer",
-                 "benitoite",
-                 "bertrandite",
-                 "beryllium",
-                 "bioreducinglichen",
-                 "biowaste",
-                 "bismuth",
-                 "bootlegliquor",
-                 "bromellite",
-                 "buildingfabricators",
-                 "ceramiccomposites",
-                 "chemicalwaste",
-                 "clothing",
-                 "cmmcomposite",
-                 "cobalt",
-                 "coffee",
-                 "coltan",
-                 "combatstabilisers",
-                 "computercomponents",
-                 "conductivefabrics",
-                 "consumertechnology",
-                 "coolinghoses",
-                 "copper",
-                 "cropharvesters",
-                 "cryolite",
-                 "damagedescapepod",
-                 "diagnosticsensor",
-                 "domesticappliances",
-                 "emergencypowercells",
-                 "evacuationshelter",
-                 "exhaustmanifold",
-                 "explosives",
-                 "fish",
-                 "foodcartridges",
-                 "fruitandvegetables",
-                 "gallite",
-                 "gallium",
-                 "geologicalequipment",
-                 "gold",
-                 "goslarite",
-                 "grain",
-                 "grandidierite",
-                 "hazardousenvironmentsuits",
-                 "heatsinkinterlink",
-                 "heliostaticfurnaces",
-                 "hnshockmount",
-                 "hostage",
-                 "hydrogenfuel",
-                 "hydrogenperoxide",
-                 "imperialslaves",
-                 "indite",
-                 "indium",
-                 "insulatingmembrane",
-                 "iondistributor",
-                 "jadeite",
-                 "landmines",
-                 "lanthanum",
-                 "leather",
-                 "lepidolite",
-                 "liquidoxygen",
-                 "liquor",
-                 "lithium",
-                 "lithiumhydroxide",
-                 "lowtemperaturediamond",
-                 "magneticemittercoil",
-                 "marinesupplies",
-                 "medicaldiagnosticequipment",
-                 "metaalloys",
-                 "methaneclathrate",
-                 "methanolmonohydratecrystals",
-                 "microcontrollers",
-                 "militarygradefabrics",
-                 "mineralextractors",
-                 "mineraloil",
-                 "modularterminals",
-                 "moissanite",
-                 "monazite",
-                 "musgravite",
-                 "mutomimager",
-                 "nanobreakers",
-                 "naturalfabrics",
-                 "neofabricinsulation",
-                 "nerveagents",
-                 "nonlethalweapons",
-                 "occupiedcryopod",
-                 "onionheadc",
-                 "opal",
-                 "osmium",
-                 "painite",
-                 "palladium",
-                 "performanceenhancers",
-                 "personaleffects",
-                 "personalweapons",
-                 "pesticides",
-                 "platinum",
-                 "polymers",
-                 "powerconverter",
-                 "powergenerators",
-                 "powergridassembly",
-                 "powertransferconduits",
-                 "praseodymium",
-                 "progenitorcells",
-                 "pyrophyllite",
-                 "radiationbaffle",
-                 "reactivearmour",
-                 "reinforcedmountingplate",
-                 "resonatingseparators",
-                 "rhodplumsite",
-                 "robotics",
-                 "rutile",
-                 "samarium",
-                 "scrap",
-                 "semiconductors",
-                 "serendibite",
-                 "silver",
-                 "skimercomponents",
-                 "slaves",
-                 "structuralregulators",
-                 "superconductors",
-                 "surfacestabilisers",
-                 "survivalequipment",
-                 "syntheticfabrics",
-                 "syntheticmeat",
-                 "syntheticreagents",
-                 "taaffeite",
-                 "tantalum",
-                 "tea",
-                 "telemetrysuite",
-                 "terrainenrichmentsystems",
-                 "thallium",
-                 "thermalcoolingunits",
-                 "thorium",
-                 "titanium",
-                 "tobacco",
-                 "tritium",
-                 "uraninite",
-                 "uranium",
-                 "usscargoblackbox",
-                 "usscargorareartwork",
-                 "water",
-                 "waterpurifiers",
-                 "wine",
-                 "wreckagecomponents",
-                 ]
-
-
-def _help():
-    if not os.path.exists('info.txt'):
-        with open('info.txt', 'w') as txt_manager:
-            txt_manager.write(info)
-            txt_manager.close()
-    os.startfile('info.txt')
-
-
-def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0):
-    """
-    Triggered automatically or manually
-    TODO:
-        - more configurable
-    :param mode: with mode is trigerred
-    :param cmdr: Your name CMDR
-    :param commodity: Information about selected station for traiding
-    :param d_data: information about traveled and remaining distance in PlotRoute mode
-    :param system: destination system in PlotRoute mode
-    :param jumps: info from csv
-    """
-    if mode == 0:
-        my_text = f'GOODBYE, CMDR. {cmdr}'
-    elif mode == 1 and isinstance(commodity, list):
-        my_text = f'{commodity[0]} - {commodity[1]} - {commodity[2]} Cr.'
-    elif mode == 2 and isinstance(d_data, dict):
-        distance = math.ceil(float(d_data["data"][0]))
-        remaining = math.ceil(float(d_data["data"][1]))
-        my_text = f'{system} | DISTANCE - {distance} Ly | REMAINING - {remaining} Ly | APPROX JUMPS - {jumps}'
-    elif mode == 3:
-        my_text = f'SYSTEM NOT DEFINED, SELECT NEW CSV ROUTE.'
-    else:
-        my_text = f'CONNECTION ERROR.'
-    root = tk.Tk()
-    root.overrideredirect(True)
-    root.configure(bg='#0f090f')
-    root.wm_attributes("-transparentcolor", "#0f090f")
-    root.geometry('%dx%d+%d+%d' % (root.winfo_screenwidth(), root.winfo_screenwidth(), 0, 0))
-    root.wm_attributes("-topmost", 1)
-    root.wm_attributes("-alpha", 0.9)
-    tk.Label(root, text=my_text, font='Arial 18 bold', bg='#030305', fg='#f5af38').pack(fill='both', ipady=10)
-    root.after(3000, root.destroy)
-    root.mainloop()
-
-
-def _selected_item_action(event, widget):
-    try:
-        item = event.widget.selection()[0]
-        pyperclip.copy(item)
-        widget.configure(text=f'Selected Destination: {item}')
-    except IndexError:
-        pass
-
-
-label_set = {'side': 'left', 'padx': 10, 'pady': 3}
-widget_set = {'side': 'right', 'fill': 'x', 'ipady': 1, 'ipadx': 100, 'padx': 5}
-entry_set = {'fill': 'x', 'ipady': 1, 'ipadx': 100, 'padx': 5}
-sites = {'Inara': {'link': 'https://inara.cz/elite/news/',
-                   'desc': 'THIS WEBSITE IS NOT AN OFFICIAL TOOL FOR THE GAME ELITE: DANGEROUS AND IS NOT '
-                           'AFFILIATED WITH FRONTIER DEVELOPMENTS. ALL INFORMATION PROVIDED IS BASED ON '
-                           'PUBLICLY AVAILABLE INFORMATION AND MAY NOT BE ENTIRELY ACCURATE.',
-                   'image': r'logo\inaralogo.png'},
-         'Roguey': {'link': 'https://roguey.co.uk/',
-                    'desc': 'Welcome to help section, in here you will find information, guides and more on '
-                            'Elite & Dangerous.',
-                    'image': r'logo\rogueylogo.png'},
-         'CMDR Tollbox': {'link': 'https://cmdrs-toolbox.com/',
-                          'desc': 'This site was created to help both new and old players in Elite Dangerous. '
-                                  'The site was created by Down To Earth Astronomy.',
-                          'image': r'logo\cmdrtoolbox.png'},
-         'Spansh - Plotter': {'link': 'https://www.spansh.co.uk/plotter/',
-                              'desc': 'This page will allow you to plot between two different star systems. '
-                                      'The result will show you every time you need to go to the galaxy map '
-                                      'in order to plot a new route '
-                                      '(for instance when you are at a neutron star)',
-                              'image': r'logo\spanch.png'},
-         'ED Legacy (I love it more)': {'link': 'http://edlegacy.iloveitmore.com.au/',
-                                        'desc': ' If you are selling, you want a high Sell Price '
-                                                'with a high Demand, if you are buying, you want a low Buy '
-                                                'Price and a high Supply.',
-                                        'image': r'logo\edlegacy.png'},
-         'Elite Dangerous Star Map': {'link': 'https://www.edsm.net',
-                                      'desc': 'EDSM (Elite Dangerous Star Map) was at first a community effort '
-                                              'to store and calculate systems coordinates around the Elite: '
-                                              'Dangerous galaxy.It is now the main API used by dozens of '
-                                              'software and websites to find systems, coordinates, information '
-                                              '(governement, allegiance, faction...) and celestial bodies '
-                                              '(types, materials...).',
-                                      'image': 'logo\edsmlogo.png'},
-         'Coriolis': {'link': 'https://coriolis.io/',
-                      'desc': 'Coriolis is a ship bulider for Elite: Dangrous.',
-                      'image': 'logo\coriolislogo.png'}
-         }
-
-
-class CombinedMenu(tk.Frame):
-
-    def __init__(self, parent, tekst, command, path=None):
-        super().__init__(parent)
-        self.tekst = tekst
-        self.path = path
-        self.f1 = ttk.Frame(parent)
-        self.f1.pack(fill='both')
-        ttk.Label(self.f1, text=tekst, justify='left').pack(fill='both', side='left', padx=10)
-        self.b1 = ttk.Button(self.f1, text='...', command=lambda: self._select_action(command))
-        self.b1.pack(side='right', padx=5)
-        self.e1 = ttk.Entry(self.f1)
-        try:
-            self.e1.insert(0, self.path)
-        except TclError:
-            pass
-        self.e1.pack(side='right', fill='x', ipady=1, ipadx=100, padx=5)
-        self.e1.bind('<Key>', lambda e: self._pressed_entry(e))
-        self.e1.image = command
-        self.e1.xview('end')
-        self.selected_log = path
-        self.selected_csv = path
-        self.selected_route = path
-
-    # noinspection PyUnresolvedReferences
-    def _pressed_entry(self, event):
-        if event.widget.image == 1:
-            if os.path.exists(self.e1.get()):
-                self.selected_log = self.e1.get()
-        elif event.widget.image == 2:
-            if os.path.exists(self.e1.get()):
-                self.selected_csv = self.e1.get()
-        elif event.widget.image == 3:
-            if os.path.exists(self.e1.get()):
-                self.selected_route = self.e1.get()
-
-    def _select_action(self, command):
-        if command == 1:
-            self.selected_log = filedialog.askdirectory(initialdir=self.path, title=self.tekst)
-            if len(self.selected_log) > 0 and os.path.exists(self.selected_log):
-                self.e1.insert(0, self.selected_log)
-                self.e1.xview('end')
-        elif command == 2:
-            self.selected_csv = filedialog.askopenfilename(initialdir=self.path, title=self.tekst,
-                                                           filetypes=[('CSV Files', '*.csv')])
-            if len(self.selected_csv) > 0 and os.path.exists(self.selected_csv):
-                self.e1.insert(0, self.selected_csv)
-                self.e1.xview('end')
-        elif command == 3:
-            self.selected_route = filedialog.askopenfilename(initialdir=self.path, title=self.tekst,
-                                                             filetypes=[('JSON Files', '*.json')])
-            if len(self.selected_route) > 0 and os.path.exists(self.selected_route):
-                self.e1.insert(0, self.selected_route)
-                self.e1.xview('end')
-
-
-class CombinedCombobox(tk.Frame):
-    def __init__(self, parent, lista, tekst, current):
-        super().__init__(parent)
-        f1 = ttk.Frame(parent)
-        f1.pack(fill='x')
-        ttk.Label(f1, text=tekst, justify='left').pack(label_set)
-        self.combo = ttk.Combobox(f1, values=lista, state='readonly', width=50)
-        self.combo.set(current)
-        self.combo.pack(widget_set)
-
-
-class CombinedEntry(tk.Frame):
-
-    def __init__(self, parent, ship, text):
-        super().__init__(parent)
-        self.parent = parent
-        self.galactic_maps = {}
-        self.ship_pos = ship
-        self.f1 = ttk.Frame(parent)
-        self.f1.pack(fill='x')
-        ttk.Label(self.f1, text=text, justify='left').pack(label_set)
-        self.f2 = ttk.Frame(self.f1)
-        self.f2.pack(fill='x', side='right')
-        self.entry = ttk.Entry(self.f2, width=50)
-        self.entry.bind('<KeyRelease>', lambda e: self._request_mysql(e))
-        self.entry.bind('<Escape>', lambda e: self.listbox.place_forget())
-        try:
-            self.entry.insert(0, self.ship_pos)
-        except TclError:
-            pass
-        self.entry.pack(entry_set)
-        self.listbox = tk.Listbox(parent, relief='flat', width=200, height=100)
-        self.scroll = ttk.Scrollbar(self.listbox, command=self.listbox.yview)
-        self.listbox.configure(yscrollcommand=self.scroll.set)
-        self.listbox.bind('<Return>', lambda e: self._check_selection(e))
-        self.listbox.bind('<Double-Button-1>', lambda e: self._check_selection(e))
-        self.listbox.bind('<Escape>', lambda e: self.listbox.place_forget())
-
-    def _check_selection(self, event):
-        selected = str(event.widget.selection_get())
-        self.entry.delete(0, 'end')
-        self.entry.insert(0, selected)
-        self.listbox.place_forget()
-
-    def _request_mysql(self, event):
-        if str(event.keysym) != 'Escape':
-            text = event.widget.get()
-            command = f"SELECT name FROM ed.powerplay WHERE name REGEXP '^{text}'"
-            if len(text) >= 1:
-                # plot_route.cursor.execute(command)
-                # self.galactic_maps = plot_route.cursor.fetchall()
-                for i, item in enumerate(self.galactic_maps):
-                    try:
-                        # noinspection PyTypeChecker
-                        self.galactic_maps[i] = item[0]
-                    except Exception as e:
-                        print(e)
-                if self.galactic_maps is not None:
-                    self._check_database()
-            else:
-                self.galactic_maps = plot_route.galactic_maps
-                self._check_database()
-
-    def _check_database(self):
-        if len(self.galactic_maps) > 0:
-            if not self.listbox.winfo_viewable():
-                self.scroll.pack(side='right', fill='y')
-                x = self.f2.winfo_x() + 5
-                y = self.f1.winfo_y() + 24
-                self.listbox.place(x=x, y=y, width=506, height=300)
-                self.listbox.lift()
-                self.listbox.update()
-            self.listbox.delete(0, "end")
-            self.listbox.insert(0, *self.galactic_maps)
-            pass
-        else:
-            self.listbox.delete(0, "end")
-            self.listbox.place_forget()
-            self.scroll.pack_forget()
-        pass
-
-
-def _open_website(event, what):
-    if what:
-        link = event.widget.data
-    else:
-        link = event.widget.image
-    webbrowser.open(link)
-
-
-class CombinedFrame(tk.Frame):
-
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.canvas = tk.Canvas(self, height=528)
-        self.scrollbar = ttk.Scrollbar(self, orient='vertical', command=self.canvas.yview)
-        self.scroll_frame = tk.Frame(self.canvas)
-        self.scroll_frame.bind("<Configure>", lambda e: self.canvas.configure(scrollregion=self.canvas.bbox("all")))
-        self.canvas.create_window((0, 0), window=self.scroll_frame, anchor="nw")
-        self.canvas.configure(yscrollcommand=self.scrollbar.set)
-        self.canvas.pack(side="left", fill="both", expand=True)
-        self.scrollbar.pack(side="right", fill="y")
-        for name, link in sites.items():
-            frame = tk.Frame(self.scroll_frame)
-            frame.pack(fill='both', padx=5)
-            label = tk.Label(frame, text=name, justify='left', width=20, anchor='w')
-            label.pack(fill='both', padx=5, side='left')
-            label.image = link['link']  # yes, silly
-            label.bind('<Button-1>', lambda e: _open_website(e, 0))
-            tk.Label(frame, text=link['desc'], justify='left', wraplength=480).pack(side='left', fill='both')
-            load_image = Image.open(link['image'])
-            load_image.thumbnail((100, 100))
-            __image = ImageTk.PhotoImage(load_image)
-            img = tk.Label(frame, image=__image)
-            img.image = __image
-            img.pack(side='right', pady=2)
-            img.data = link['link']
-            img.bind('<Button-1>', lambda e: _open_website(e, 1))
-            ttk.Separator(self, orient='horizontal').pack(fill='x', padx=5)
 
 
 class SettingWidget(ttk.Frame):
@@ -509,7 +65,7 @@ class SettingWidget(ttk.Frame):
         pass
 
 
-class ShortCuts(ttk.Frame):
+class ShortCuts(tk.Frame):
     def __init__(self, parent, text, option, shortcuts):
         super().__init__(parent)
 
@@ -570,53 +126,108 @@ class PartSettingFrame(tk.Frame):
         ShortCuts(self, text='Exit App', shortcuts=plot_route.shortcuts, option='exit')
 
 
-class Dswedrftgyhuji(object):
-    def __init__(self, pipe_connection):
-        self.pipe_connection = pipe_connection
-        self.galactic_maps = []
-        self._load_maps()
-        self._send_package()
+class CombinedEntry(tk.Frame):
 
-    def _send_package(self):
-        self.pipe_connection.send(self.galactic_maps)
+    def __init__(self, parent, ship, text):
+        super().__init__(parent)
+        self.parent = parent
+        self.galactic_maps = {}
+        self.ship_pos = ship
+        self.f1 = ttk.Frame(parent)
+        self.f1.pack(fill='x')
+        ttk.Label(self.f1, text=text, justify='left').pack(label_set)
+        self.f2 = ttk.Frame(self.f1)
+        self.f2.pack(fill='x', side='right')
+        self.entry = ttk.Entry(self.f2, width=50)
+        self.entry.bind('<KeyRelease>', lambda e: self._request_mysql(e))
+        self.entry.bind('<Escape>', lambda e: self.listbox.place_forget())
+        try:
+            self.entry.insert(0, self.ship_pos)
+        except TclError:
+            pass
+        self.entry.pack(entry_set)
+        self.listbox = tk.Listbox(parent, relief='flat', width=200, height=100)
+        self.scroll = ttk.Scrollbar(self.listbox, command=self.listbox.yview)
+        self.listbox.configure(yscrollcommand=self.scroll.set)
+        self.listbox.bind('<Return>', lambda e: self._check_selection(e))
+        self.listbox.bind('<Double-Button-1>', lambda e: self._check_selection(e))
+        self.listbox.bind('<Escape>', lambda e: self.listbox.place_forget())
 
-    def _load_maps(self):
-        with open(r'powerPlay.json') as maps:
-            self.galactic_maps_list = json.load(maps)
-            self.galactic_maps = [x['name'] for x in self.galactic_maps_list]
-            del self.galactic_maps_list
-            maps.close()
-            print("POWERPLAY LOAED")
+    def _check_selection(self, event):
+        selected = str(event.widget.selection_get())
+        self.entry.delete(0, 'end')
+        self.entry.insert(0, selected)
+        self.listbox.place_forget()
+
+    # noinspection PyUnusedLocal
+    def _request_mysql(self, event):
+        if str(event.keysym) != 'Escape':
+            text = event.widget.get()
+            command = f"SELECT name FROM ed.powerplay WHERE name REGEXP '^{text}'"
+            if len(text) >= 1:
+                # plot_route.cursor.execute(command)
+                # self.galactic_maps = plot_route.cursor.fetchall()
+                for i, item in enumerate(self.galactic_maps):
+                    try:
+                        # noinspection PyTypeChecker
+                        self.galactic_maps[i] = item[0]
+                    except Exception as e:
+                        print(e)
+                if self.galactic_maps is not None:
+                    self._check_database()
+            else:
+                self.galactic_maps = plot_route.galactic_maps
+                self._check_database()
+
+    def _check_database(self):
+        if len(self.galactic_maps) > 0:
+            if not self.listbox.winfo_viewable():
+                self.scroll.pack(side='right', fill='y')
+                x = self.f2.winfo_x() + 5
+                y = self.f1.winfo_y() + 24
+                self.listbox.place(x=x, y=y, width=506, height=300)
+                self.listbox.lift()
+                self.listbox.update()
+            self.listbox.delete(0, "end")
+            self.listbox.insert(0, *self.galactic_maps)
+            pass
+        else:
+            self.listbox.delete(0, "end")
+            self.listbox.place_forget()
+            self.scroll.pack_forget()
+        pass
 
 
 class PlotPyperClip:
 
     def __init__(self):
         self.parent_pipe, self.child_pipe = Pipe()
-        self.log_path = r''
-        self.csv_path = r''
-        self.json_path = r''
-        self.cmdr = None
         self.ship_pos_regrex = re.compile(r'^\{.*}\s*System:"(?P<current_pos>.*)"\s*StarPos:.*', re.I)
         self.cmdr_regrex = re.compile(r'^.*UID=\d+\s*name=(?P<name>.*)', re.I)
         self._log_thread = threading.Thread(target=self._background_loop)
         self._keyboard_thread = threading.Thread(target=self._run_listener)
         self._compare_thread = threading.Thread(target=self._pos_to_csv_loop)
+        self._once_pipe_loop = threading.Thread(target=self._pipe_loop)
         self.header = ["System Name", "Distance To Arrival", "Distance Remaining", "Neutron Star", "Jumps"]
-        self.headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) '
-                                      'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
         self.plot_route_from_csv = {}
         self.checked_systems = []
+        self.start_up = True
         self.interests = [1, 1, 0, 1, 0, 0, 0, 0, 1]
-        self.shortcuts = {'setting': 'F2',
-                          'next': 'F3',
-                          'shop': 'F4',
-                          'exit': 'F10'}
+        self.shortcuts = {'setting': 'Key.f2',
+                          'next': 'Key.f3',
+                          'shop': 'Key.f4',
+                          'exit': 'Key.f10'}
         self.ship_pos = None
+        self.cmdr = None
         self.comparision_founded = False
         self.newest_log_file = ''
         self.log_content = ''
+        self.log_path = r''
+        self.csv_path = r''
+        self.json_path = r''
+
         self.next_system = ''
+        self.process = None
         self.wake_gui = False
         self.monitoring_route = False
         self.validate_route = False
@@ -657,7 +268,7 @@ class PlotPyperClip:
         smart_gui(cmdr=self.cmdr)
         exit()
 
-    def _side_loop(self):
+    def _proccess_side_loop(self):
         while True:
             if self.process.is_alive():
                 try:
@@ -669,28 +280,6 @@ class PlotPyperClip:
             if self.galactic_maps is not None:
                 print('MAPS LOADED FROM PIPE')
                 break
-
-    def request_pipe(self):
-
-        if self.use_local_database and self.processed == 0:
-            self.processed = 1
-            self.process = Process(target=Dswedrftgyhuji, args=(self.child_pipe,))  # Frustration
-            self.process.start()
-            threading.Thread(target=self._side_loop).start()
-        if self.gui_started:
-            self.root.after(100, self.request_pipe)  # some silly ehh
-
-    def _before_startup(self):
-        print('START UP')
-        r = False
-        if not os.path.exists(r'config.json'):
-            print('CONFIG FILE REQUEST')
-            self._gui()
-            r = True
-        else:
-            self._load_config()
-        if not r:
-            self._gui()
 
     def _background_loop(self):
         print('LOG LOOP STARTED')
@@ -758,7 +347,7 @@ class PlotPyperClip:
 
     def _check_commodities(self):
         try:
-            self.page_content = requests.get(self.link, headers=self.headers).content
+            self.page_content = requests.get(self.link, headers=headers).content
         except Exception as e:
             print(e)
             self.commodity_error = True
@@ -881,7 +470,7 @@ class PlotPyperClip:
             except JSONDecodeError as e:
                 print(e, 'in config.json')
                 exit(1)
-            except IndexError as n:
+            except IndexError:
                 raise IndexError('Config file compromised')
         print('CONFIG FILE LOADED')
         print(f'CURRENT SETUP:\n\t-LOG\t{self.log_path}\n\t-CSV\t{self.csv_path}\n\t-JSON\t{self.json_path}')
@@ -966,7 +555,7 @@ class PlotPyperClip:
         treeview.column('#0', width=0)
         [treeview.heading(x, text=y, anchor='w') for x, y in columns.items()]
         [treeview.column(i, width=x, anchor='w') for i, x in enumerate(column_size)]
-        treeview.bind('<ButtonRelease-1>', lambda g: _selected_item_action(g, label1))
+        treeview.bind('<ButtonRelease-1>', lambda g: selected_item_action(g, label1))
         for i, (parent, values) in enumerate(self.plot_route_from_csv.items()):
             try:
                 distance = math.ceil(float(values["data"][0]))
@@ -1001,9 +590,8 @@ class PlotPyperClip:
         self.b1.pack(padx=5, pady=5, side='right')
         self.b2 = ttk.Button(self.f4, text='Finish JSON & CSV', command=self._delete)
         self.b2.pack(padx=5, pady=5, side='right')
-        self.b3 = ttk.Button(self.f4, text='Help', command=_help)
+        self.b3 = ttk.Button(self.f4, text='Help', command=help)
         self.b3.pack(padx=5, pady=5, side='left')
-        self.root.after(0, self.request_pipe)
         self.root.mainloop()
         self.gui_started = False
 
@@ -1043,6 +631,17 @@ class PlotPyperClip:
         self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
         del resolve
 
+    def _pipe_loop(self):
+        while True:
+            if self.use_local_database and self.processed == 0:
+                self.processed = 1
+                self.process = Process(target=Dswedrftgyhuji, args=(self.child_pipe,))  # Frustration
+                self.process.start()
+                threading.Thread(target=self._proccess_side_loop).start()
+            if self.process:
+                break
+            time.sleep(0.5)
+
     def _main_loop(self):
         print("MAIN LOOP STARTED")
         self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
@@ -1059,7 +658,8 @@ class PlotPyperClip:
                 self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
                 self._short_presentation()
                 self._save_json()
-            if self.wake_gui:
+            if self.wake_gui or self.start_up:
+                self.start_up = False
                 self.wake_gui = False
                 self.run_script = False
                 self._gui()
@@ -1084,8 +684,12 @@ class PlotPyperClip:
         """
         Start all threads
         """
+        if os.path.exists('config.json'):
+            self._load_config()
+        else:
+            self._save_config()
+        self._once_pipe_loop.start()
         self._keyboard_thread.start()
-        self._before_startup()
         self._log_thread.start()
         if os.path.exists(self.json_path):
             self._read_json()
