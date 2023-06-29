@@ -46,10 +46,13 @@ def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0):
     root.mainloop()
 
 
-def selected_item_action(event, widget):
+def selected_item_action(event, widget, fast_close, root, double):
     try:
         item = event.widget.selection()[0]
         pyperclip.copy(item)
+        if fast_close and double:
+            root.destroy()
+            return
         widget.configure(text=f'Selected Destination: {item}')
     except IndexError:
         pass

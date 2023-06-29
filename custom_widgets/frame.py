@@ -31,7 +31,7 @@ class CombinedFrame(tk.Frame):
             label.pack(fill='both', padx=5, side='left')
             label.image = link['link']  # yes, silly
             label.bind('<Button-1>', lambda e: _open_website(e, 0))
-            tk.Label(frame, text=link['desc'], justify='left', wraplength=480).pack(side='left', fill='both')
+            tk.Label(frame, text=link['desc'], justify='left', wraplength=440).pack(side='left', fill='both')
             load_image = Image.open(link['image'])
             load_image.thumbnail((100, 100))
             __image = ImageTk.PhotoImage(load_image)

@@ -4,9 +4,9 @@ Now, I like it and add some features in free time.
 Not everything works, some lags exists, soo.. yeah.
 TODO:
     - Extended configuration file
+    - save from request
     - MySQL requests
     - Pinned Locations with short Notes (I have no idea what I have saved in the tabs in the game)
-    - who knows
     - connected or not
     - login client ect.
 """
@@ -29,7 +29,7 @@ from settings.separate_process import Dswedrftgyhuji
 from custom_widgets.frame import CombinedFrame
 from custom_widgets.menu import CombinedMenu
 from custom_widgets.combobox import CombinedCombobox
-from custom_widgets.route_tree import PlotTree
+from custom_widgets.custom_trees import PlotTree, CommodityTree
 from side_functions_and_gui.others import help, smart_gui
 import mysql.connector, password
 
@@ -44,13 +44,14 @@ class SettingWidget(ttk.Frame):
         super().__init__(parent)
         self.boolvar = tk.BooleanVar()
         self.select = ttk.Checkbutton(self, text=text, variable=self.boolvar,
-                                      command=self._setvar)
-        self.boolvar.set(value=option)
+                                      command=lambda: self._setvar(option))
+        self.boolvar.set(value=plot_route.settings[option])
         self.select.pack(label_set)
         self.pack(fill='x')
 
-    def _setvar(self):
-        plot_route.settings['use_local_database'] = self.boolvar.get()
+    def _setvar(self, opt):
+        plot_route.settings[opt] = self.boolvar.get()
+        plot_route.send_settings = True
         pass
 
 
@@ -107,7 +108,8 @@ class ShortCuts(tk.Frame):
 class PartSettingFrame(tk.Frame):
     def __init__(self, parent):
         super().__init__(parent)
-        SettingWidget(self, text='Use local database (json)', option=plot_route.settings['use_local_database'])
+        SettingWidget(self, text='Use local database (json)', option='use_local_database')
+        SettingWidget(self, text='Close after double click location', option='close_clipping')
         ttk.Separator(self, orient='horizontal').pack(fill='x', padx=5, pady=2)
         ShortCuts(self, text='Open Smart ED', shortcuts=plot_route.settings['shortcuts'], option='setting')
         ShortCuts(self, text='Copy Next PyPlotter', shortcuts=plot_route.settings['shortcuts'], option='next')
@@ -245,6 +247,7 @@ class PlotPyperClip:
         self.sql = None
         self.cursor = None
         self.gui_started = False
+        self.send_settings = False
 
         self.processed = 0
 
@@ -259,7 +262,8 @@ class PlotPyperClip:
                                        'next': 'Key.f3',
                                        'shop': 'Key.f4',
                                        'exit': 'Key.f10'},
-                         'use_local_database': False}
+                         'use_local_database': False,
+                         'close_clipping': False}
 
     def _close_all(self):
         self.close_thread = True
@@ -289,6 +293,10 @@ class PlotPyperClip:
             if self.run_script:
                 self._read_log()
                 self._parse_ship_position()
+            if self.send_settings:
+                self.send_settings = False
+                self.tree.fast_close = self.settings['close_clipping']
+                self.f6.fast_close = self.settings['close_clipping']
             if self.close_thread:
                 break
             time.sleep(0.5)
@@ -335,8 +343,8 @@ class PlotPyperClip:
         if str(args[0]) == self.settings['shortcuts']['exit'] and not self.gui_started:
             self._close_all()
 
-    def _req(self, i, zbior, element):
-        if self.interests[i]:
+    def _req(self, i, zbior, element, full_request):
+        if self.interests[i] or full_request:
             if i + 1 != len(zbior):
                 if i == 3:
                     return int(element.text)
@@ -347,7 +355,9 @@ class PlotPyperClip:
         else:
             return False
 
-    def _check_commodities(self):
+    def _check_commodities(self, f=False):
+        del self.zbior
+        self.zbior = {}
         try:
             self.page_content = requests.get(self.link, headers=headers).content
         except Exception as e:
@@ -359,17 +369,21 @@ class PlotPyperClip:
         for markets in tablica[0].contents:
             # noinspection PyUnresolvedReferences
             coto = markets.contents
-            lokalna_tablica = [self._req(i, coto, x) for i, x in enumerate(coto) if self._req(i, coto, x)]
-            self.zbior[lokalna_tablica[2]] = lokalna_tablica
+            lokalna_tablica = [self._req(i, coto, x, f) for i, x in enumerate(coto) if self._req(i, coto, x, f)]
+            if f:
+                self.zbior[lokalna_tablica[3]] = lokalna_tablica
+            else:
+                self.zbior[lokalna_tablica[2]] = lokalna_tablica
         reorganizacja = sorted(self.zbior.keys())
         reorganizacja.reverse()
+        if f:
+            return
         for price in reorganizacja[:5]:
             self.drogie[self.zbior[price][3]] = self.zbior[price]
         reorganizacja = sorted(self.drogie.keys())
         self.port = self.drogie[reorganizacja[0]]
         pyperclip.copy(self.port[0])
         self.open_commodity = True
-        pass
 
     def _short_presentation(self):
         self._define_next_system()
@@ -499,7 +513,7 @@ class PlotPyperClip:
         self.gui_started = True
         self.root = tk.Tk()
         self.root.iconbitmap(r'favicon.ico')
-        # self.root.attributes('-topmost', 1)
+        self.root.attributes('-topmost', 1)
         self.root.title('Smart ED Legacy')
         self.root.resizable(False, False)
 
@@ -528,6 +542,8 @@ class PlotPyperClip:
         self.f5.pack(fill='both')
         self.button = ttk.Button(self.f5, text='Check Best Price (Legacy)', command=self._set_commodity)
         self.button.pack(padx=5, pady=3, side='right')
+        self.tree = CommodityTree(self.ntbkf_2, {}, self.settings['close_clipping'], self.root)
+        self.tree.pack(fill='both')
         self.ntbkf_2.pack()
 
         self.ntbkf_3 = ttk.Frame(self.notebook)
@@ -536,7 +552,7 @@ class PlotPyperClip:
         ttk.Label(self.ntbkf_3, text=f"Next System: {self.next_system}", justify='left').pack(fill='x', padx=10,
                                                                                               ipady=5)
         ttk.Label(self.ntbkf_3, text=f"Approx Jumps: {self.remaining}", justify='left').pack(fill='x', padx=10, ipady=5)
-        self.f6 = PlotTree(self.ntbkf_3, self.plot_route_from_csv)
+        self.f6 = PlotTree(self.ntbkf_3, self.plot_route_from_csv, self.settings['close_clipping'], self.root)
         self.f6.pack(fill='both')
         self.ntbkf_3.pack()
 
@@ -572,6 +588,8 @@ class PlotPyperClip:
             self.reference = self.e1.entry.get().replace(' ', '+')
         self.link = fr'http://edlegacy.iloveitmore.com.au/?action=' \
                     fr'{self.sell_or_buy}&commodity={self.commodity}&reference={self.reference}'
+        self._check_commodities(True)
+        self.tree.update_tree(self.zbior)
 
     def _check_pos(self):
         try:
