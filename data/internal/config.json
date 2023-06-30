@@ -1,5 +1,5 @@
 {
-  "log_path": "",
+  "log_path": "D:/SteamLibrary/steamapps/common/Elite Dangerous/Products/elite-dangerous-64/Logs",
   "csv_path": "",
   "json_path": "",
   "shortcuts": {
@@ -8,6 +8,18 @@
     "shop": "Key.f4",
     "exit": "Key.f10"
   },
-  "use_local_database": false,
-  "close_clipping": true
+  "use_local_database": true,
+  "close_clipping": false,
+  "data_base_file": "",
+  "copy_to_app": false,
+  "cmdr": "",
+  "stored_data": {
+    "powerPlay.json": {
+      "path": "C:/Users/adaszynski/Downloads/powerPlay.json/powerPlay.json",
+      "in_use": "Yes",
+      "size": "1.2 MB",
+      "systems": 5237,
+      "loaded": "Yes"
+    }
+  }
 }

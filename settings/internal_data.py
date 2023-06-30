@@ -220,3 +220,10 @@ CONFIG_JSON_FILE = 'data/internal/config.json'
 LAST_COMMODITY_FILE = 'data/internal/commodity.json'
 CSV_DIRECTORY = 'data/csv_plots'
 JSON_DIRECTORY = 'data/json_plots'
+SAFE_LOG_PATH_REQ = r'Elite Dangerous.Products.elite-dangerous-64.Logs'
+UID_SYNTAX = r'^.*UID=\d+\s*name=(?P<name>.*)'
+SHIP_SYNTAX = r'^\{.*}\s*System:"(?P<current_pos>.*)"\s*StarPos:.*'
+
+LOC_DATA = {'path': '',
+            'in_use': '',
+            'size': ''}

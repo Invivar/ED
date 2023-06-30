@@ -46,13 +46,20 @@ def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0):
     root.mainloop()
 
 
-def selected_item_action(event, widget, fast_close, root, double):
+def sel_item_action(event, widget, fast_close, root, double):
     try:
         item = event.widget.selection()[0]
         pyperclip.copy(item)
         if fast_close and double:
-            root.destroy()
+            event.widget.bind('<Double-1>', 'break')
+            root.after(100, root.destroy)  # simple root.destroy() causes some strange warnings in childs
             return
         widget.configure(text=f'Selected Destination: {item}')
     except IndexError:
         pass
+
+def sizeof_fmt(num, suffix="B"):
+    for unit in ["", "M", "G", "T", "P", "E", "Z"]:
+        num /= 1024.0
+        if abs(num) < 1024.0:
+            return f"{num:3.1f} {unit}{suffix}"
