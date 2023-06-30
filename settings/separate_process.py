@@ -12,7 +12,7 @@ class Dswedrftgyhuji(object):
         self.pipe_connection.send(self.galactic_maps)
 
     def _load_maps(self):
-        with open(r'powerPlay.json') as maps:
+        with open(r'systemsPopulated.json') as maps:
             self.galactic_maps_list = json.load(maps)
             self.galactic_maps = [x['name'] for x in self.galactic_maps_list]
             del self.galactic_maps_list

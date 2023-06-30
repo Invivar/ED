@@ -11,8 +11,7 @@ TODO:
     - login client ect.
 """
 import os, re, threading
-import tkinter as tk
-from tkinter import ttk, TclError
+from tkinter import TclError
 from pynput.keyboard import Listener
 import time, json
 from json.decoder import JSONDecodeError
@@ -23,13 +22,13 @@ import requests, gc
 from bs4 import BeautifulSoup
 from ctypes import windll
 from multiprocessing import Pipe, Process, freeze_support
-from settings.internal_data import products_list, headers, what
+from settings.internal_data import *
 from settings.widgets import label_set, entry_set
 from settings.separate_process import Dswedrftgyhuji
 from custom_widgets.frame import CombinedFrame
 from custom_widgets.menu import CombinedMenu
 from custom_widgets.combobox import CombinedCombobox
-from custom_widgets.custom_trees import PlotTree, CommodityTree
+from custom_widgets.custom_trees import *
 from side_functions_and_gui.others import help, smart_gui
 import mysql.connector, password
 
@@ -119,11 +118,11 @@ class PartSettingFrame(tk.Frame):
 
 class CombinedEntry(tk.Frame):
 
-    def __init__(self, parent, ship, text):
+    def __init__(self, parent, reference, text):
         super().__init__(parent)
         self.parent = parent
         self.galactic_maps = {}
-        self.ship_pos = ship
+        self.reference = reference
         self.f1 = ttk.Frame(parent)
         self.f1.pack(fill='x')
         ttk.Label(self.f1, text=text, justify='left').pack(label_set)
@@ -133,7 +132,7 @@ class CombinedEntry(tk.Frame):
         self.entry.bind('<KeyRelease>', lambda e: self.request_from(e))
         self.entry.bind('<Escape>', lambda e: self.listbox.place_forget())
         try:
-            self.entry.insert(0, self.ship_pos)
+            self.entry.insert(0, self.reference.replace('+', ' '))
         except TclError:
             pass
         self.entry.pack(entry_set)
@@ -222,11 +221,12 @@ class PlotPyperClip:
         self.port = ''
         self.last_system = ''
         self.current_k = ''
-        self.sell_or_buy = 'selling'
-        self.commodity = 'platinum'
-        self.reference = 'omicron+capricorni+b'
+        self.com_data = {'way': 'selling',
+                         'what': 'platinum',
+                         'ref': 'omicron+capricorni+b',
+                         'last': {}}
         self.link = fr'http://edlegacy.iloveitmore.com.au/?action=' \
-                    fr'{self.sell_or_buy}&commodity={self.commodity}&reference={self.reference}'
+                    fr'{self.com_data["way"]}&commodity={self.com_data["what"]}&reference={self.com_data["ref"]}'
 
         self.process = None
         self.ship_pos = None
@@ -343,7 +343,7 @@ class PlotPyperClip:
         if str(args[0]) == self.settings['shortcuts']['exit'] and not self.gui_started:
             self._close_all()
 
-    def _req(self, i, zbior, element, full_request):
+    def _req(self, i, zbior, element, full_request=True):
         if self.interests[i] or full_request:
             if i + 1 != len(zbior):
                 if i == 3:
@@ -355,9 +355,9 @@ class PlotPyperClip:
         else:
             return False
 
-    def _check_commodities(self, f=False):
-        del self.zbior
-        self.zbior = {}
+    def _check_commodities(self):
+        del self.com_data["last"]
+        self.com_data["last"] = {}
         try:
             self.page_content = requests.get(self.link, headers=headers).content
         except Exception as e:
@@ -369,17 +369,12 @@ class PlotPyperClip:
         for markets in tablica[0].contents:
             # noinspection PyUnresolvedReferences
             coto = markets.contents
-            lokalna_tablica = [self._req(i, coto, x, f) for i, x in enumerate(coto) if self._req(i, coto, x, f)]
-            if f:
-                self.zbior[lokalna_tablica[3]] = lokalna_tablica
-            else:
-                self.zbior[lokalna_tablica[2]] = lokalna_tablica
-        reorganizacja = sorted(self.zbior.keys())
+            lokalna_tablica = [self._req(i, coto, x) for i, x in enumerate(coto) if self._req(i, coto, x)]
+            self.com_data["last"][lokalna_tablica[3]] = lokalna_tablica
+        reorganizacja = sorted(self.com_data["last"].keys())
         reorganizacja.reverse()
-        if f:
-            return
         for price in reorganizacja[:5]:
-            self.drogie[self.zbior[price][3]] = self.zbior[price]
+            self.drogie[self.com_data["last"][price][3]] = self.com_data["last"][price]
         reorganizacja = sorted(self.drogie.keys())
         self.port = self.drogie[reorganizacja[0]]
         pyperclip.copy(self.port[0])
@@ -474,20 +469,21 @@ class PlotPyperClip:
                 self.next_system = system
         pyperclip.copy(self.next_system)
 
-    def _load_config(self):
-        with open('config.json') as json_manager:
+    def _load_config(self, path):
+        with open(path) as json_manager:
             try:
-                self.settings = json.load(json_manager)
+                dict_data = json.load(json_manager)
+                return dict_data
             except JSONDecodeError as e:
-                print(e, 'in config.json')
+                print(e, f'in {path}.json')
                 exit(1)
             except IndexError:
                 raise IndexError('Config file compromised')
         print('CONFIG FILE LOADED')
 
-    def _save_config(self):
-        with open('config.json', 'w') as json_manager:
-            json.dump(self.settings, json_manager, indent=2)
+    def _save_config(self, path, data):
+        with open(path, 'w') as json_manager:
+            json.dump(data, json_manager, indent=2)
             json_manager.close()
         print('NEW CONFIGURATION SAVED')
 
@@ -497,7 +493,7 @@ class PlotPyperClip:
         self.settings['json_path'] = self.f3.e1.get()
         self._read_csv()
         self._save_json()
-        self._save_config()
+        self._save_config(CONFIG_JSON_FILE, self.settings)
         self.root.destroy()
 
     def _delete(self):
@@ -506,7 +502,7 @@ class PlotPyperClip:
         self.f2.e1.delete(0, 'end')
         self.f3.e1.delete(0, 'end')
         self._read_csv()
-        self._save_config()
+        self._save_config(CONFIG_JSON_FILE, self.settings)
 
     # noinspection PyAttributeOutsideInit
     def _gui(self):
@@ -533,16 +529,16 @@ class PlotPyperClip:
         self.ntbkf_1.pack(fill='x')
 
         self.ntbkf_2 = ttk.Frame(self.notebook)
-        self.e1 = CombinedEntry(self.ntbkf_2, self.ship_pos, 'Select Start System')
+        self.e1 = CombinedEntry(self.ntbkf_2, self.com_data["ref"], 'Select Start System')
         self.e1.pack(fill='x')
-        self.c1 = CombinedCombobox(self.ntbkf_2, what, 'Action', self.sell_or_buy)
+        self.c1 = CombinedCombobox(self.ntbkf_2, what, 'Action', self.com_data["way"])
         self.c1.pack(fill='x')
-        self.c2 = CombinedCombobox(self.ntbkf_2, products_list, 'Product', self.commodity)
+        self.c2 = CombinedCombobox(self.ntbkf_2, products_list, 'Product', self.com_data["what"])
         self.f5 = ttk.Frame(self.ntbkf_2)
         self.f5.pack(fill='both')
         self.button = ttk.Button(self.f5, text='Check Best Price (Legacy)', command=self._set_commodity)
         self.button.pack(padx=5, pady=3, side='right')
-        self.tree = CommodityTree(self.ntbkf_2, {}, self.settings['close_clipping'], self.root)
+        self.tree = CommodityTree(self.ntbkf_2, self.com_data["last"], self.settings['close_clipping'], self.root)
         self.tree.pack(fill='both')
         self.ntbkf_2.pack()
 
@@ -582,14 +578,15 @@ class PlotPyperClip:
         self.gui_started = False
 
     def _set_commodity(self):
-        self.sell_or_buy = self.c1.combo.get()
-        self.commodity = self.c2.combo.get()
+        self.com_data["way"] = self.c1.combo.get()
+        self.com_data["what"] = self.c2.combo.get()
         if len(self.e1.entry.get()) > 0:
-            self.reference = self.e1.entry.get().replace(' ', '+')
+            self.com_data["ref"] = self.e1.entry.get().replace(' ', '+')
         self.link = fr'http://edlegacy.iloveitmore.com.au/?action=' \
-                    fr'{self.sell_or_buy}&commodity={self.commodity}&reference={self.reference}'
-        self._check_commodities(True)
-        self.tree.update_tree(self.zbior)
+                    fr'{self.com_data["way"]}&commodity={self.com_data["what"]}&reference={self.com_data["ref"]}'
+        self._check_commodities()
+        self._save_config(LAST_COMMODITY_FILE, self.com_data)
+        self.tree.update_tree(self.com_data["last"])
 
     def _check_pos(self):
         try:
@@ -623,8 +620,7 @@ class PlotPyperClip:
         try:
             self.sql = mysql.connector.connect(host='localhost',
                                                user='root',
-                                               password=password.my_pass,
-                                               connection_timeout=10)
+                                               password=password.my_pass)
             self.cursor = self.sql.cursor(buffered=True)
         except Exception as e:
             self.sql = None
@@ -682,10 +678,14 @@ class PlotPyperClip:
         """
         Start all threads
         """
-        if os.path.exists('config.json'):
-            self._load_config()
+        if os.path.exists(CONFIG_JSON_FILE):
+            self.settings = self._load_config(CONFIG_JSON_FILE)
         else:
-            self._save_config()
+            self._save_config(CONFIG_JSON_FILE, self.settings)
+        if os.path.exists(LAST_COMMODITY_FILE):
+            self.com_data = self._load_config(LAST_COMMODITY_FILE)
+        else:
+            self._save_config(LAST_COMMODITY_FILE, self.com_data)
         self._once_pipe_loop.start()
         self._keyboard_thread.start()
         self._log_thread.start()

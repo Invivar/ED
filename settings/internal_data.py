@@ -215,3 +215,8 @@ products_list = ["advancedcatalysers",
 headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_10_1) '
                          'AppleWebKit/537.36 (KHTML, like Gecko) Chrome/39.0.2171.95 Safari/537.36'}
 what = ['selling', 'buying']
+
+CONFIG_JSON_FILE = 'data/internal/config.json'
+LAST_COMMODITY_FILE = 'data/internal/commodity.json'
+CSV_DIRECTORY = 'data/csv_plots'
+JSON_DIRECTORY = 'data/json_plots'

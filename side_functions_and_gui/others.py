@@ -25,7 +25,7 @@ def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0):
     if mode == 0:
         my_text = f'GOODBYE, CMDR. {cmdr}'
     elif mode == 1 and isinstance(commodity, list):
-        my_text = f'{commodity[0]} - {commodity[1]} - {commodity[2]} Cr.'
+        my_text = f'{commodity[0]} - {commodity[1]} - {commodity[3]} Cr.'
     elif mode == 2 and isinstance(d_data, dict):
         distance = math.ceil(float(d_data["data"][0]))
         remaining = math.ceil(float(d_data["data"][1]))

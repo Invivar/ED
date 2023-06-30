@@ -57,6 +57,7 @@ class CommodityTree(tk.Frame):
         [self.treeview.column(i, width=x, anchor='w') for i, x in enumerate(column_size)]
         self.treeview.bind('<ButtonRelease-1>', lambda g: selected_item_action(g, label1, self.fast_close, ancestor, 0))
         self.treeview.bind('<Double-1>', lambda g: selected_item_action(g, label1, self.fast_close, ancestor, 1))
+        self.update_tree(plot)
 
     def update_tree(self, plot):
         for item in self.treeview.get_children():

@@ -1,0 +1,13 @@
+{
+  "log_path": "",
+  "csv_path": "",
+  "json_path": "",
+  "shortcuts": {
+    "setting": "Key.f2",
+    "next": "Key.f3",
+    "shop": "Key.f4",
+    "exit": "Key.f10"
+  },
+  "use_local_database": false,
+  "close_clipping": true
+}
