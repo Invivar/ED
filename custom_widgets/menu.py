@@ -1,11 +1,11 @@
 import tkinter as tk
 import os
 from tkinter import filedialog, TclError, ttk
-from settings.internal_data import *
+
 
 class CombinedMenu(tk.Frame):
 
-    def __init__(self, parent, tekst, command, path=None, local_path=False, force=False):
+    def __init__(self, parent, tekst, command, path=None):
         super().__init__(parent)
         self.tekst = tekst
         self.path = path
