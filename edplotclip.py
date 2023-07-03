@@ -133,6 +133,7 @@ class PartSettingFrame(tk.Frame):
         self.c1 = SettingWidget(self, text='Use local database (json)', option='use_local_database')
         SettingWidget(self, text='Close after double click location', option='close_clipping')
         SettingWidget(self, text='Copy CSV to App', option='copy_to_app')
+        SettingWidget(self, text='Inara Result In Short Commodity', option='use_inara')
         ttk.Separator(self, orient='horizontal').pack(fill='x', padx=5, pady=2)
         ShortCuts(self, text='Open Smart ED', shortcuts=plot_route.settings['shortcuts'], option='setting')
         ShortCuts(self, text='Copy Next PyPlotter', shortcuts=plot_route.settings['shortcuts'], option='next')
@@ -282,11 +283,13 @@ class PlotPyperClip:
         self.send_settings = False
         self.update_data_from_process = False
         self.updating = False
+        self.setted = False
 
         self.processed = 0
 
         self.galactic_maps = {}
         self.drogie = {}
+        self.inara_comm = {}
         self.plot_route_from_csv = {}
         self.settings = {'log_path': '',
                          'csv_path': '',
@@ -300,7 +303,9 @@ class PlotPyperClip:
                          'data_base_file': '',
                          'copy_to_app': False,
                          'cmdr': '',
-                         'stored_data': {}}
+                         'stored_data': {},
+                         'use_inara': True,
+                         }
         self.com_data = {'way': 'selling',
                          'what': 'platinum',
                          'ref': 'omicron+capricorni+b',
@@ -418,7 +423,6 @@ class PlotPyperClip:
             self._close_all()
 
     def _req(self, i, zbior, element):
-
         if i + 1 != len(zbior):
             if i == 3:
                 return int(element.text)
@@ -427,7 +431,7 @@ class PlotPyperClip:
         else:
             return int(str(time.time()).split('.')[0]) - int(element.attrs['data-sort'])
 
-    def _check_commodities(self, manual):
+    def _check_commodities(self, manual, is_inara):
         del self.com_data["last"]
         self.com_data["last"] = {}
         try:
@@ -441,7 +445,11 @@ class PlotPyperClip:
         for markets in tablica[0].contents:
             # noinspection PyUnresolvedReferences
             coto = markets.contents
-            lokalna_tablica = [self._req(i, coto, x) for i, x in enumerate(coto) if self._req(i, coto, x)]
+            if is_inara:
+                lokalna_tablica = [x.text for i, x in enumerate(coto)]
+                pass
+            else:
+                lokalna_tablica = [self._req(i, coto, x) for i, x in enumerate(coto) if self._req(i, coto, x)]
             self.com_data["last"][lokalna_tablica[3]] = lokalna_tablica
         if manual:
             return
@@ -645,8 +653,10 @@ class PlotPyperClip:
         self.c2 = CombinedCombobox(self.ntbkf_2, products_list, 'Product', self.com_data["what"])
         self.f5 = ttk.Frame(self.ntbkf_2)
         self.f5.pack(fill='both')
-        self.button = ttk.Button(self.f5, text='Check Best Price (Legacy)', command=self._set_commodity)
+        self.button = ttk.Button(self.f5, text='Check Price (Legacy)', command=lambda: self._set_commodity(0))
         self.button.pack(padx=5, pady=3, side='right')
+        self.butto2 = ttk.Button(self.f5, text='Check Price (Inara)', command=lambda: self._set_commodity(1))
+        self.butto2.pack(padx=5, pady=3, side='right')
         self.tree = CommodityTree(self.ntbkf_2, self.com_data["last"], self.settings['close_clipping'], self.root)
         self.tree.pack(fill='both')
         self.ntbkf_2.pack()
@@ -690,8 +700,8 @@ class PlotPyperClip:
         self.b3.pack(padx=5, pady=5, side='left')
         self.info_label = tk.Label(self.f4)
         self.info_label.pack(padx=5, pady=5, side='left')
-        self.root.after(0, self.root.deiconify)  # return visibility after frames loads
-        self.root.after(100, self._gui_loop)
+        self.root.after(0, self._gui_loop)
+        self.root.after(100, self.root.deiconify)  # return visibility after frames loads
         self.root.mainloop()
         self.gui_started = False
 
@@ -757,14 +767,29 @@ class PlotPyperClip:
                 self.f8.b3.data = ''
                 self.f8.b3.configure(state='disabled')
 
-    def _set_commodity(self):
+    def _requested_comm(self):
+        REQ_COMMO = self.com_data["what"].upper()
+        for number, commodity in self.inara_comm.items():
+            COMMO = commodity.upper()
+            if REQ_COMMO in COMMO:
+                return number
+        return False
+
+    def _set_commodity(self, inara_request):
         self.com_data["way"] = self.c1.combo.get()
         self.com_data["what"] = self.c2.combo.get()
         if len(self.e1.entry.get()) > 0:
             self.com_data["ref"] = self.e1.entry.get().replace(' ', '+')
-        self.link = fr'http://edlegacy.iloveitmore.com.au/?action=' \
-                    fr'{self.com_data["way"]}&commodity={self.com_data["what"]}&reference={self.com_data["ref"]}'
-        self._check_commodities(True)
+        if inara_request:
+            number = self._requested_comm()
+            if 'selling' in self.com_data['way']:
+                self.com_data['way'] = '2'
+            else:
+                self.com_data['way'] = '1'
+            self.link = fr'https://inara.cz/elite/commodities/?pi1={self.com_data["way"]}&pa1%5B%5D={number}&ps1={self.com_data["ref"]}&pi10=3&pi11=0&pi3=1&pi9=0&pi4=0&pi5=720&pi12=0&pi7=0&pi8=0'
+        else:
+            self.link = fr'http://edlegacy.iloveitmore.com.au/?action={self.com_data["way"]}&commodity={self.com_data["what"]}&reference={self.com_data["ref"]}'
+        self._check_commodities(True, inara_request)
         self.save_config(LAST_COMMODITY_FILE, self.com_data)
         self.tree.update_tree(self.com_data["last"])
 
@@ -841,7 +866,7 @@ class PlotPyperClip:
                 smart_gui(mode=4)
             if self.check_commodity:
                 self.check_commodity = False
-                self._check_commodities(False)
+                self._check_commodities(False, self.setted)
             if self.close_thread:
                 break
 
@@ -865,6 +890,10 @@ class PlotPyperClip:
             self.bookmarks = self._load_config(BOOKMARKS_JSON_FILE)
         else:
             self.save_config(BOOKMARKS_JSON_FILE, self.bookmarks)
+        if os.path.exists(INARA):
+            self.inara_comm = self._load_config(INARA)
+        else:
+            self.save_config(INARA, self.inara_comm)
         self._once_pipe_loop.start()
         self._keyboard_thread.start()
         self._log_thread.start()
