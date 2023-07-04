@@ -30,7 +30,7 @@ from custom_widgets.frame import CombinedFrame
 from custom_widgets.menu import CombinedMenu
 from custom_widgets.combobox import CombinedCombobox
 from custom_widgets.custom_trees import *
-from side_functions_and_gui.others import help, smart_gui, sizeof_fmt
+from side_functions_and_gui.others import help_, smart_gui, sizeof_fmt
 import mysql.connector, password
 
 windll.shcore.SetProcessDpiAwareness(1)
@@ -718,7 +718,7 @@ class PlotPyperClip:
         self.b1.pack(padx=5, pady=5, side='right')
         self.b2 = ttk.Button(self.f4, text='Finish JSON & CSV', command=self._delete)
         self.b2.pack(padx=5, pady=5, side='right')
-        self.b3 = ttk.Button(self.f4, text='Help', command=help)
+        self.b3 = ttk.Button(self.f4, text='Help', command=help_)
         self.b3.pack(padx=5, pady=5, side='left')
         self.info_label = tk.Label(self.f4)
         self.info_label.pack(padx=5, pady=5, side='left')
