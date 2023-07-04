@@ -83,9 +83,9 @@ class CommodityTree(tk.Frame):
         self.update()
         self.plot = plot
         if len(self.plot) > 0 and isinstance(self.plot, dict):
-            for _, values in self.plot.items():
+            for parent, values in self.plot.items():
                 try:
-                    self.treeview.insert('', 'end', iid=values[0], values=values, open=False)
+                    self.treeview.insert('', 'end', iid=parent, values=values, open=False)
                 except tk.TclError as e:
                     print(e)
 
@@ -121,6 +121,7 @@ class SettingTree(tk.Frame):
                     self.treeview.insert('', 'end', iid=parent, values=temp_list, open=False)
                 except tk.TclError as e:
                     print(e)
+
 
 class AddBookmark(tk.Toplevel):
     def __init__(self, parent, combined_entry, position):

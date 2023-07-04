@@ -41,7 +41,7 @@ gc.set_threshold(1, 20, 20)
 class SettingWidget(ttk.Frame):
     def __init__(self, parent, text, option):
         super().__init__(parent)
-        self.select = tk.Checkbutton(self, text=text, command=lambda: self._setvar(option))  # rip ttk :<
+        self.select = tk.Checkbutton(self, text=text, command=lambda: self._setvar(option), name=option)  # rip ttk :<
         if plot_route.settings[option]:
             self.select.select()
         else:
@@ -252,6 +252,8 @@ class PlotPyperClip:
         self._once_pipe_loop = threading.Thread(target=self._pipe_loop)
 
         self.checked_systems = []
+        self.replace_loop = ['\ue823\ufe0e', '\ue81d\ufe0e', '\ue81d\ue84f', '\ue84f\ufe0e', "PP+", '\ue84e\ufe0e',
+                             '\ue84d\ufe0e', '\ue823\ufe0e', 'Cr']
 
         self.newest_log_file = ''
         self.log_content = ''
@@ -294,17 +296,17 @@ class PlotPyperClip:
         self.settings = {'log_path': '',
                          'csv_path': '',
                          'json_path': '',
+                         'data_base_file': '',
+                         'cmdr': '',
+                         'use_local_database': False,
+                         'close_clipping': False,
+                         'use_inara': True,
+                         'copy_to_app': False,
+                         'stored_data': {},
                          'shortcuts': {'setting': 'Key.f2',
                                        'next': 'Key.f3',
                                        'shop': 'Key.f4',
-                                       'exit': 'Key.f10'},
-                         'use_local_database': False,
-                         'close_clipping': False,
-                         'data_base_file': '',
-                         'copy_to_app': False,
-                         'cmdr': '',
-                         'stored_data': {},
-                         'use_inara': True,
+                                       'exit': 'Key.f10'}
                          }
         self.com_data = {'way': 'selling',
                          'what': 'platinum',
@@ -431,7 +433,28 @@ class PlotPyperClip:
         else:
             return int(str(time.time()).split('.')[0]) - int(element.attrs['data-sort'])
 
-    def _check_commodities(self, manual, is_inara):
+    def _convert_txt(self, text):
+        for repl in self.replace_loop:
+            text = text.replace(repl, '')
+        return text
+
+    def _edit_result(self, pack, way):
+        step_1 = [x.text for x in pack]
+        stacja = step_1[0].split('|')[0].strip()
+        system = self._convert_txt(step_1[0].split('|')[1].strip())
+        pad = step_1[1]
+        cena = self._convert_txt(step_1[5])
+        demand = self._convert_txt(step_1[4])
+        updated = step_1[6]
+        dystans = self._convert_txt(step_1[3])
+        if "2" in way:
+            zwrot = [system, stacja, pad, cena, '', demand, '', dystans, updated]
+        else:
+            zwrot = [system, stacja, pad, '', cena, demand, '', dystans, updated]
+
+        return zwrot
+
+    def _check_commodities(self, manual, is_inara, way='0'):
         del self.com_data["last"]
         self.com_data["last"] = {}
         try:
@@ -446,11 +469,10 @@ class PlotPyperClip:
             # noinspection PyUnresolvedReferences
             coto = markets.contents
             if is_inara:
-                lokalna_tablica = [x.text for i, x in enumerate(coto)]
-                pass
+                lokalna_tablica = self._edit_result(coto, way)
             else:
                 lokalna_tablica = [self._req(i, coto, x) for i, x in enumerate(coto) if self._req(i, coto, x)]
-            self.com_data["last"][lokalna_tablica[3]] = lokalna_tablica
+            self.com_data["last"][lokalna_tablica[1]] = lokalna_tablica
         if manual:
             return
         reorganizacja = sorted(self.com_data["last"].keys())
@@ -776,6 +798,7 @@ class PlotPyperClip:
         return False
 
     def _set_commodity(self, inara_request):
+        way = '0'
         self.com_data["way"] = self.c1.combo.get()
         self.com_data["what"] = self.c2.combo.get()
         if len(self.e1.entry.get()) > 0:
@@ -783,13 +806,16 @@ class PlotPyperClip:
         if inara_request:
             number = self._requested_comm()
             if 'selling' in self.com_data['way']:
-                self.com_data['way'] = '2'
+                way = '2'
             else:
-                self.com_data['way'] = '1'
-            self.link = fr'https://inara.cz/elite/commodities/?pi1={self.com_data["way"]}&pa1%5B%5D={number}&ps1={self.com_data["ref"]}&pi10=3&pi11=0&pi3=1&pi9=0&pi4=0&pi5=720&pi12=0&pi7=0&pi8=0'
+                way = '1'
+            self.link = fr'https://inara.cz/elite/commodities/?pi1={way}&pa1%5B%5D={number}&ps1=' \
+                        fr'{self.com_data["ref"]}&pi10=3&pi11=0&pi3=1&pi9=0&pi4=0&pi5=720&pi12=0&pi7=0&pi8=0'
+            pass
         else:
-            self.link = fr'http://edlegacy.iloveitmore.com.au/?action={self.com_data["way"]}&commodity={self.com_data["what"]}&reference={self.com_data["ref"]}'
-        self._check_commodities(True, inara_request)
+            self.link = fr'http://edlegacy.iloveitmore.com.au/?action={self.com_data["way"]}&commodity=' \
+                        fr'{self.com_data["what"]}&reference={self.com_data["ref"]}'
+        self._check_commodities(True, inara_request, way)
         self.save_config(LAST_COMMODITY_FILE, self.com_data)
         self.tree.update_tree(self.com_data["last"])
 

@@ -1,4 +1,4 @@
-import json
+import re
 from copy import deepcopy as dc
 
 
@@ -6,7 +6,7 @@ class Dswedrftgyhuji(object):
     def __init__(self, pipe_connection, load_data):
         self.pipe_connection = pipe_connection
         self.load_data = load_data
-        self.galactic_maps = []
+        self.galactic_maps = set()
         self._load_maps()
         self._send_package()
 
@@ -14,13 +14,14 @@ class Dswedrftgyhuji(object):
         self.pipe_connection.send([self.galactic_maps, self.load_data])
 
     def _operate(self, item, values):
+        regrex = re.compile(r'^.*"name":"(?P<name>[^:",]*)",', re.I)
         with open(values['path']) as maps:
             pass
-            self.galactic_list = json.load(maps)
-            values['systems'] = dc(len(self.galactic_list))
-            [self.galactic_maps.append(x['name']) for x in self.galactic_list if x['name'] not in self.galactic_maps]
+            galactic_list = maps.readlines()
+            values['systems'] = dc(len(galactic_list))
+            [self.galactic_maps.add(regrex.match(x).groupdict()['name']) for x in galactic_list if regrex.match(x)]
             print(f"POWERPLAY {values['systems']} SYSTEMS LOAED FROM {item}")
-            del self.galactic_list
+            del galactic_list
             maps.close()
 
     def _load_maps(self):  # dorobic obsluge koordynatow
