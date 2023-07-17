@@ -9,9 +9,10 @@ TODO:
 
 FIXME:
     - APPROX JUMPS
-    - LOAD CSV, JSON AND TREEVIEW IN PLOTROUTE, CORRECT CATALOGS
+    - CORRECT CATALOGS
+    - Tcl Error
 """
-import os, re, threading
+import os, re, threading, json
 from tkinter import TclError, filedialog
 from pynput.keyboard import Listener
 import time
@@ -30,18 +31,28 @@ from custom_widgets.frame import CombinedFrame
 from custom_widgets.menu import CombinedMenu
 from custom_widgets.combobox import CombinedCombobox
 from custom_widgets.custom_trees import *
-from side_functions_and_gui.others import help_, smart_gui, sizeof_fmt
+from side_functions_and_gui.others import help_, smart_gui, sizeof_fmt, save_config
 import mysql.connector, password
 
 windll.shcore.SetProcessDpiAwareness(1)
 windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), 6)
-gc.set_threshold(1, 20, 20)
+gc.set_threshold(1, 10, 10)
+
+
+def _setvar(opt):
+    if plot_route.settings[opt]:
+        plot_route.settings[opt] = False
+    else:
+        plot_route.settings[opt] = True
+    plot_route.send_settings = True
+    save_config(CONFIG_JSON_FILE, plot_route.settings)
+    pass
 
 
 class SettingWidget(ttk.Frame):
     def __init__(self, parent, text, option):
         super().__init__(parent)
-        self.select = tk.Checkbutton(self, text=text, command=lambda: self._setvar(option), name=option)  # rip ttk :<
+        self.select = tk.Checkbutton(self, text=text, command=lambda: _setvar(option), name=option)  # rip ttk :<
         if plot_route.settings[option]:
             self.select.select()
         else:
@@ -56,14 +67,27 @@ class SettingWidget(ttk.Frame):
         self.select.pack(label_set)
         self.pack(fill='x')
 
-    def _setvar(self, opt):
-        if plot_route.settings[opt]:
-            plot_route.settings[opt] = False
+
+def _set_clicked(event, mode):
+    if mode == 1:
+        event.widget.clicked = True
+        event.widget.focus_set()
+        event.widget.configure(highlightbackground='#6433FF')
+    elif mode == 2:
+        event.widget.configure(bg='#FCFFB7', text='<BindKey>', anchor='center')
+        event.widget.grab_set()
+        event.widget.selected = True
+
+
+def _on_motion(event, _in):
+    if _in:
+        if not event.widget.clicked:
+            event.widget.configure(highlightbackground='black')
         else:
-            plot_route.settings[opt] = True
-        plot_route.send_settings = True
-        plot_route.save_config(CONFIG_JSON_FILE, plot_route.settings)
-        pass
+            event.widget.configure(highlightbackground='#6433FF')
+    else:
+        event.widget.configure(highlightbackground='grey')
+        event.widget.clicked = False
 
 
 class ShortCuts(tk.Frame):
@@ -72,10 +96,10 @@ class ShortCuts(tk.Frame):
         ttk.Label(self, text=text, justify='left', width=25).pack(side='left')
         e1 = tk.Label(self, text=shortcuts[option], highlightbackground='grey', highlightthickness=1,
                       width=10, anchor='e', bg='white')
-        e1.bind('<Motion>', lambda e: self._on_motion(e, 1))
-        e1.bind('<Button-1>', lambda e: self._set_clicked(e, 1))
-        e1.bind('<Double-1>', lambda e: self._set_clicked(e, 2))
-        e1.bind('<Leave>', lambda e: self._on_motion(e, 0))
+        e1.bind('<Motion>', lambda e: _on_motion(e, 1))
+        e1.bind('<Button-1>', lambda e: _set_clicked(e, 1))
+        e1.bind('<Double-1>', lambda e: _set_clicked(e, 2))
+        e1.bind('<Leave>', lambda e: _on_motion(e, 0))
         e1.bind('<KeyRelease>', lambda e: self._validate(e))
         e1.pack(side='left')
         e1.clicked = False
@@ -92,27 +116,7 @@ class ShortCuts(tk.Frame):
                 event.widget.selected = False
                 event.widget.configure(bg='white', text=key, anchor='e')
                 event.widget.grab_release()
-                plot_route.save_config(CONFIG_JSON_FILE, plot_route.settings)
-
-    def _set_clicked(self, event, mode):
-        if mode == 1:
-            event.widget.clicked = True
-            event.widget.focus_set()
-            event.widget.configure(highlightbackground='#6433FF')
-        elif mode == 2:
-            event.widget.configure(bg='#FCFFB7', text='<BindKey>', anchor='center')
-            event.widget.grab_set()
-            event.widget.selected = True
-
-    def _on_motion(self, event, _in):
-        if _in:
-            if not event.widget.clicked:
-                event.widget.configure(highlightbackground='black')
-            else:
-                event.widget.configure(highlightbackground='#6433FF')
-        else:
-            event.widget.configure(highlightbackground='grey')
-            event.widget.clicked = False
+                save_config(CONFIG_JSON_FILE, plot_route.settings)
 
 
 class PartSettingTree(tk.Frame):
@@ -179,7 +183,7 @@ class CombinedEntry(tk.Frame):
         except TclError:
             pass
         plot_route.com_data['ref'] = self.entry.get().replace(' ', '+')
-        plot_route.save_config(LAST_COMMODITY_FILE, plot_route.com_data)
+        save_config(LAST_COMMODITY_FILE, plot_route.com_data)
         pass
 
     def _check_selection(self, event):
@@ -236,6 +240,29 @@ class CombinedEntry(tk.Frame):
         pass
 
 
+def _req(i, zbior, element):
+    if i + 1 != len(zbior):
+        if i == 3:
+            return int(element.text)
+        else:
+            return str(element.text).strip()
+    else:
+        return int(str(time.time()).split('.')[0]) - int(element.attrs['data-sort'])
+
+
+def _load_config(path):
+    with open(path) as json_manager:
+        try:
+            dict_data = json.load(json_manager)
+            return dict_data
+        except JSONDecodeError as e:
+            print(e, f'in {path}.json')
+            exit(1)
+        except IndexError:
+            raise IndexError('Config file compromised')
+    print('CONFIG FILE LOADED')
+
+
 class PlotPyperClip:
 
     def __init__(self):
@@ -286,10 +313,11 @@ class PlotPyperClip:
         self.update_data_from_process = False
         self.updating = False
         self.setted = False
+        self.run_short_presentation = False
 
         self.processed = 0
 
-        self.galactic_maps = {}
+        self.galactic_maps = set()
         self.drogie = {}
         self.inara_comm = {}
         self.plot_route_from_csv = {}
@@ -367,10 +395,6 @@ class PlotPyperClip:
             if self.run_script:
                 self._read_log()
                 self._parse_ship_position()
-            if self.send_settings:
-                self.send_settings = False
-                self.tree.fast_close = self.settings['close_clipping']
-                self.f6.fast_close = self.settings['close_clipping']
             if self.close_thread:
                 break
             time.sleep(0.5)
@@ -418,20 +442,11 @@ class PlotPyperClip:
                 self.gui_started = True
                 self.wake_gui = True
         if str(args[0]) == self.settings['shortcuts']['next'] and not self.gui_started:
-            self._short_presentation()
+            self.run_short_presentation = True
         if str(args[0]) == self.settings['shortcuts']['shop'] and not self.gui_started:
             self.check_commodity = True
         if str(args[0]) == self.settings['shortcuts']['exit'] and not self.gui_started:
             self._close_all()
-
-    def _req(self, i, zbior, element):
-        if i + 1 != len(zbior):
-            if i == 3:
-                return int(element.text)
-            else:
-                return str(element.text).strip()
-        else:
-            return int(str(time.time()).split('.')[0]) - int(element.attrs['data-sort'])
 
     def _convert_txt(self, text):
         for repl in self.replace_loop:
@@ -471,8 +486,8 @@ class PlotPyperClip:
             if is_inara:
                 lokalna_tablica = self._edit_result(coto, way)
             else:
-                lokalna_tablica = [self._req(i, coto, x) for i, x in enumerate(coto) if self._req(i, coto, x)]
-            self.com_data["last"][lokalna_tablica[1]] = lokalna_tablica
+                lokalna_tablica = [_req(i, coto, x) for i, x in enumerate(coto) if _req(i, coto, x)]
+            self.com_data["last"][lokalna_tablica[3]] = lokalna_tablica
         if manual:
             return
         reorganizacja = sorted(self.com_data["last"].keys())
@@ -480,7 +495,7 @@ class PlotPyperClip:
         for price in reorganizacja[:5]:
             self.drogie[self.com_data["last"][price][3]] = self.com_data["last"][price]
         reorganizacja = sorted(self.drogie.keys())
-        self.port = self.drogie[reorganizacja[0]]
+        self.port = self.drogie[reorganizacja[-1]]
         pyperclip.copy(self.port[0])
         self.open_commodity = True
 
@@ -573,23 +588,6 @@ class PlotPyperClip:
                 self.next_system = system
         pyperclip.copy(self.next_system)
 
-    def _load_config(self, path):
-        with open(path) as json_manager:
-            try:
-                dict_data = json.load(json_manager)
-                return dict_data
-            except JSONDecodeError as e:
-                print(e, f'in {path}.json')
-                exit(1)
-            except IndexError:
-                raise IndexError('Config file compromised')
-        print('CONFIG FILE LOADED')
-
-    def save_config(self, path, data):
-        with open(path, 'w') as json_manager:
-            json.dump(data, json_manager, indent=2)
-            json_manager.close()
-
     def load_custom_data(self):
 
         selected_json_data = filedialog.askopenfilename(title='Load Custom Maps', filetypes=[('json files', '*.json')])
@@ -600,7 +598,7 @@ class PlotPyperClip:
             temp_dict = {'path': selected_json_data, 'in_use': 'No', 'size': size_info,
                          'systems': 'Unknown', 'loaded': 'No'}
             self.settings['stored_data'][name_info] = dc(temp_dict)
-            self.save_config(CONFIG_JSON_FILE, self.settings)
+            save_config(CONFIG_JSON_FILE, self.settings)
             self.f7.update_tree(self.settings['stored_data'])
             pass
 
@@ -610,7 +608,7 @@ class PlotPyperClip:
         self.settings['json_path'] = self.f3.e1.get()
         self._read_csv()
         self._save_json()
-        self.save_config(CONFIG_JSON_FILE, self.settings)
+        save_config(CONFIG_JSON_FILE, self.settings)
         self.gui_started = False
 
     def delete_stored(self):
@@ -619,7 +617,7 @@ class PlotPyperClip:
             key = self.f8.b3.data
             del self.settings['stored_data'][key]
             self.f7.update_tree(self.settings['stored_data'])
-            self.save_config(CONFIG_JSON_FILE, self.settings)
+            save_config(CONFIG_JSON_FILE, self.settings)
         except Exception as e:
             print(e)
 
@@ -629,7 +627,7 @@ class PlotPyperClip:
         self.f2.e1.delete(0, 'end')
         self.f3.e1.delete(0, 'end')
         self._read_csv()
-        self.save_config(CONFIG_JSON_FILE, self.settings)
+        save_config(CONFIG_JSON_FILE, self.settings)
 
     # noinspection PyAttributeOutsideInit
     def _gui(self):
@@ -728,6 +726,10 @@ class PlotPyperClip:
         self.gui_started = False
 
     def _gui_loop(self):
+        if self.send_settings:
+            self.send_settings = False
+            self.tree.fast_close = self.settings['close_clipping']
+            self.f6.fast_close = self.settings['close_clipping']
         t1 = f"Current Ship Position: {self.ship_pos}"
         if t1 != self.lab_ship_pos.cget('text'):
             self.lab_ship_pos.configure(text=t1)
@@ -775,7 +777,7 @@ class PlotPyperClip:
                     self.settings_gui.c1.select.deselect()
                     self.settings_gui.c1.select.configure(state='disabled')
                     self.settings['use_local_database'] = False
-                self.save_config(CONFIG_JSON_FILE, self.settings)
+                save_config(CONFIG_JSON_FILE, self.settings)
             except IndexError:
                 pass
             except KeyError as e:
@@ -816,7 +818,7 @@ class PlotPyperClip:
             self.link = fr'http://edlegacy.iloveitmore.com.au/?action={self.com_data["way"]}&commodity=' \
                         fr'{self.com_data["what"]}&reference={self.com_data["ref"]}'
         self._check_commodities(True, inara_request, way)
-        self.save_config(LAST_COMMODITY_FILE, self.com_data)
+        save_config(LAST_COMMODITY_FILE, self.com_data)
         self.tree.update_tree(self.com_data["last"])
 
     def _check_pos(self):
@@ -852,7 +854,8 @@ class PlotPyperClip:
         while True:
             if self.settings['use_local_database'] and self.processed == 0:
                 self.processed = 1
-                self.process = Process(target=Dswedrftgyhuji, args=(self.child_pipe, self.settings['stored_data']))
+                self.process = Process(target=Dswedrftgyhuji, args=(self.child_pipe, self.settings['stored_data'],
+                                                                    self.galactic_maps))
                 self.process.start()
                 threading.Thread(target=self._proccess_side_loop).start()
             if self.processed:
@@ -895,7 +898,9 @@ class PlotPyperClip:
                 self._check_commodities(False, self.setted)
             if self.close_thread:
                 break
-
+            if self.run_short_presentation:
+                self.run_short_presentation = False
+                self._short_presentation()
             time.sleep(0.5)
 
     def run(self):
@@ -903,23 +908,23 @@ class PlotPyperClip:
         Start all threads
         """
         if os.path.exists(CONFIG_JSON_FILE):
-            self.settings = self._load_config(CONFIG_JSON_FILE)
+            self.settings = _load_config(CONFIG_JSON_FILE)
             for item, values in self.settings['stored_data'].items():
                 values['loaded'] = "No"
         else:
-            self.save_config(CONFIG_JSON_FILE, self.settings)
+            save_config(CONFIG_JSON_FILE, self.settings)
         if os.path.exists(LAST_COMMODITY_FILE):
-            self.com_data = self._load_config(LAST_COMMODITY_FILE)
+            self.com_data = _load_config(LAST_COMMODITY_FILE)
         else:
-            self.save_config(LAST_COMMODITY_FILE, self.com_data)
+            save_config(LAST_COMMODITY_FILE, self.com_data)
         if os.path.exists(BOOKMARKS_JSON_FILE):
-            self.bookmarks = self._load_config(BOOKMARKS_JSON_FILE)
+            self.bookmarks = _load_config(BOOKMARKS_JSON_FILE)
         else:
-            self.save_config(BOOKMARKS_JSON_FILE, self.bookmarks)
+            save_config(BOOKMARKS_JSON_FILE, self.bookmarks)
         if os.path.exists(INARA):
-            self.inara_comm = self._load_config(INARA)
+            self.inara_comm = _load_config(INARA)
         else:
-            self.save_config(INARA, self.inara_comm)
+            save_config(INARA, self.inara_comm)
         self._once_pipe_loop.start()
         self._keyboard_thread.start()
         self._log_thread.start()

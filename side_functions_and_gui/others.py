@@ -52,15 +52,28 @@ def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0):
 def sel_item_action(event, widget, fast_close, root, double):
     try:
         item = event.widget.selection()[0]
-        master_data = event.widget.master.plot[item]  # lol
-        pyperclip.copy(master_data[0])
+        master_data = event.widget.master.plot[item]
+        master = r'.!notebook.!frame4.!bookmarktree' in str(event.widget.master)
+        if isinstance(master_data, list):
+            pyperclip.copy(master_data[0])
+            widget.configure(text=f'Selected Destination: {master_data[0]}')
+        else:
+            pyperclip.copy(item)
+            master_data = item
+            widget.configure(text=f'Selected Destination: {master_data}')
+        if master:
+            event.widget.master.b2.configure(state='normal')
+            event.widget.master.b3.configure(state='normal')
         if fast_close and double:
             event.widget.bind('<Double-1>', 'break')
-            root.after(100, root.destroy)  # simple root.destroy() causes some strange warnings in childs
+            root.after(100, root.destroy)
             return
-        widget.configure(text=f'Selected Destination: {master_data[0]}')
-    except IndexError:
         pass
+    except IndexError:
+        master = r'.!notebook.!frame4.!bookmarktree' in str(event.widget.master)
+        if master:
+            event.widget.master.b2.configure(state='disabled')
+            event.widget.master.b3.configure(state='disabled')
 
 
 def sizeof_fmt(num, suffix="B"):
@@ -85,3 +98,9 @@ def inara_req():
     with open(r'data/internal/inara_result.json', 'w') as j:
         json.dump(zbiory, j, indent=2)
         j.close()
+
+
+def save_config(path, data):
+    with open(path, 'w') as json_manager:
+        json.dump(data, json_manager, indent=2)
+        json_manager.close()
