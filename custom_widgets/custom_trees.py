@@ -155,6 +155,36 @@ class AddBookmark(tk.Toplevel):
             self.parent.edit_bookmark(self.combined_entry.entry.get(), self.text_entry.get(1.0, 'end'))
 
 
+class AddBookmark(tk.Toplevel):
+    def __init__(self, parent, combined_entry, position, mode, selected):
+        super().__init__(parent)
+        self.parent = parent
+        self.attributes('-topmost', 1)
+        self.grab_set()
+        self.title('Add Bookmark')
+        self.iconbitmap(r'favicon.ico')
+        f1 = ttk.Frame(self)
+        f1.pack(fill='x', padx=10, pady=10)
+        self.combined_entry = combined_entry(self, position, 'Location')
+        if mode == 1:
+            self.combined_entry.entry.delete(0, 'end')
+            self.combined_entry.entry.insert(0, selected[0])
+            self.combined_entry.entry.configure(state='disabled')
+            self.combined_entry.b1.configure(state='disabled')
+        self.text_entry = tk.Text(self, relief='solid')
+        self.text_entry.pack(fill='both', padx=10, pady=10)
+        f2 = ttk.Frame(self)
+        f2.pack(fill='x')
+        b1 = ttk.Button(f2, text='OK', command=lambda: self._send_to_parent(mode))
+        b1.pack(side='right', fill='x', padx=10, pady=10)
+
+    def _send_to_parent(self, mode):
+        if mode == 0:
+            self.parent.add_to_bookmark(self.combined_entry.entry.get(), self.text_entry.get(1.0, 'end'))
+        elif mode == 1:
+            self.parent.edit_bookmark(self.combined_entry.entry.get(), self.text_entry.get(1.0, 'end'))
+
+
 class BookmarkTree(tk.Frame):
     def __init__(self, parent, plot, closing, ancestor, combined, position):
         super().__init__(parent)

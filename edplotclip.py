@@ -9,10 +9,11 @@ TODO:
 
 FIXME:
     - APPROX JUMPS
-    - CORRECT CATALOGS
-    - Tcl Error
+    - LOAD CSV, JSON AND TREEVIEW IN PLOTROUTE, CORRECT CATALOGS
 """
-import os, re, threading, json
+import os
+import re
+import threading
 from tkinter import TclError, filedialog
 from pynput.keyboard import Listener
 import time
@@ -20,7 +21,8 @@ from json.decoder import JSONDecodeError
 import pyperclip
 from win32gui import GetWindowText, GetForegroundWindow
 from copy import deepcopy as dc
-import requests, gc
+import requests
+import gc
 from bs4 import BeautifulSoup
 from ctypes import windll
 from multiprocessing import Pipe, Process, freeze_support
@@ -31,12 +33,15 @@ from custom_widgets.frame import CombinedFrame
 from custom_widgets.menu import CombinedMenu
 from custom_widgets.combobox import CombinedCombobox
 from custom_widgets.custom_trees import *
-from side_functions_and_gui.others import help_, smart_gui, sizeof_fmt, save_config
-import mysql.connector, password
+from side_functions_and_gui.others import help_, smart_gui, sizeof_fmt
+import mysql.connector
+import password
+import json
+from side_functions_and_gui import gui_bridge
 
 windll.shcore.SetProcessDpiAwareness(1)
 windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), 6)
-gc.set_threshold(1, 10, 10)
+gc.set_threshold(1, 20, 20)
 
 
 def _setvar(opt):
@@ -263,6 +268,12 @@ def _load_config(path):
     print('CONFIG FILE LOADED')
 
 
+def save_config(path, data):
+    with open(path, 'w') as json_manager:
+        json.dump(data, json_manager, indent=2)
+        json_manager.close()
+
+
 class PlotPyperClip:
 
     def __init__(self):
@@ -313,11 +324,11 @@ class PlotPyperClip:
         self.update_data_from_process = False
         self.updating = False
         self.setted = False
-        self.run_short_presentation = False
+        self.short_present = False
 
         self.processed = 0
 
-        self.galactic_maps = set()
+        self.galactic_maps = {}
         self.drogie = {}
         self.inara_comm = {}
         self.plot_route_from_csv = {}
@@ -349,12 +360,12 @@ class PlotPyperClip:
         self.close_thread = True
         if self.key_manager is not None:
             self.key_manager.stop()
-        self.cursor.close()
-        self.sql.close()
+        if self.cursor is not None:
+            self.cursor.close()
+            self.sql.close()
         if self.process is not None:
             if self.process.is_alive:
                 self.process.kill()
-        smart_gui(cmdr=self.cmdr)
         exit()
 
     def my_sql_connect(self):
@@ -395,6 +406,10 @@ class PlotPyperClip:
             if self.run_script:
                 self._read_log()
                 self._parse_ship_position()
+            if self.send_settings:
+                self.send_settings = False
+                self.tree.fast_close = self.settings['close_clipping']
+                self.f6.fast_close = self.settings['close_clipping']
             if self.close_thread:
                 break
             time.sleep(0.5)
@@ -436,16 +451,16 @@ class PlotPyperClip:
 
     def _check_pressed(self, *args):
         if str(args[0]) == self.settings['shortcuts']['setting']:
-            if self.gui_started:
-                self.gui_started = False
+            if gui_bridge.gui_started:
+                gui_bridge.gui_started = False
             else:
-                self.gui_started = True
+                gui_bridge.gui_started = True
                 self.wake_gui = True
-        if str(args[0]) == self.settings['shortcuts']['next'] and not self.gui_started:
-            self.run_short_presentation = True
-        if str(args[0]) == self.settings['shortcuts']['shop'] and not self.gui_started:
+        if str(args[0]) == self.settings['shortcuts']['next'] and not gui_bridge.gui_started:
+            self.short_present = True
+        if str(args[0]) == self.settings['shortcuts']['shop'] and not gui_bridge.gui_started:
             self.check_commodity = True
-        if str(args[0]) == self.settings['shortcuts']['exit'] and not self.gui_started:
+        if str(args[0]) == self.settings['shortcuts']['exit'] and not gui_bridge.gui_started:
             self._close_all()
 
     def _convert_txt(self, text):
@@ -487,7 +502,7 @@ class PlotPyperClip:
                 lokalna_tablica = self._edit_result(coto, way)
             else:
                 lokalna_tablica = [_req(i, coto, x) for i, x in enumerate(coto) if _req(i, coto, x)]
-            self.com_data["last"][lokalna_tablica[3]] = lokalna_tablica
+            self.com_data["last"][lokalna_tablica[1]] = lokalna_tablica
         if manual:
             return
         reorganizacja = sorted(self.com_data["last"].keys())
@@ -495,7 +510,7 @@ class PlotPyperClip:
         for price in reorganizacja[:5]:
             self.drogie[self.com_data["last"][price][3]] = self.com_data["last"][price]
         reorganizacja = sorted(self.drogie.keys())
-        self.port = self.drogie[reorganizacja[-1]]
+        self.port = self.drogie[reorganizacja[0]]
         pyperclip.copy(self.port[0])
         self.open_commodity = True
 
@@ -503,9 +518,9 @@ class PlotPyperClip:
         self._define_next_system()
         if self.next_system in self.plot_route_from_csv:
             smart_gui(system=self.next_system, d_data=self.plot_route_from_csv[self.next_system],
-                      jumps=self.remaining, mode=2)
+                      jumps=self.remaining, mode=2, parent=self.root)
         else:
-            smart_gui(mode=3)
+            smart_gui(mode=3, parent=self.root)
 
     def _read_json(self):
         with open(self.settings['json_path']) as json_manager:
@@ -609,7 +624,7 @@ class PlotPyperClip:
         self._read_csv()
         self._save_json()
         save_config(CONFIG_JSON_FILE, self.settings)
-        self.gui_started = False
+        gui_bridge.gui_started = False
 
     def delete_stored(self):
         try:
@@ -631,7 +646,7 @@ class PlotPyperClip:
 
     # noinspection PyAttributeOutsideInit
     def _gui(self):
-        self.gui_started = True
+        gui_bridge.gui_started = True
         self.root = tk.Tk()
         self.root.geometry('+%d+%d' % (10, 20))
         self.root.protocol('WM_DELETE_WINDOW', self._ready)
@@ -723,19 +738,13 @@ class PlotPyperClip:
         self.root.after(0, self._gui_loop)
         self.root.after(100, self.root.deiconify)  # return visibility after frames loads
         self.root.mainloop()
-        self.gui_started = False
 
     def _gui_loop(self):
-        if self.send_settings:
-            self.send_settings = False
-            self.tree.fast_close = self.settings['close_clipping']
-            self.f6.fast_close = self.settings['close_clipping']
         t1 = f"Current Ship Position: {self.ship_pos}"
         if t1 != self.lab_ship_pos.cget('text'):
             self.lab_ship_pos.configure(text=t1)
-        if not self.gui_started:
-            self.root.after(0, self.root.destroy)  # sie musi sam zamykac
-            return
+        if not gui_bridge.gui_started:
+            self.root.after(0, self.root.withdraw)  # sie musi sam zamykac
         if self.updating:
             text = 'Loading Local Maps'
             if text != self.info_label.cget('text'):
@@ -747,6 +756,41 @@ class PlotPyperClip:
             self.update_data_from_process = False
             self.f7.update_tree(self.settings['stored_data'])
         self.check_entry_fields()
+        self.window_locker = (GetWindowText(GetForegroundWindow()))
+        if 'Elite - Dangerous (CLIENT)' in self.window_locker:
+            self.run_script = True
+        else:
+            self.run_script = False
+        if self.comparision_founded:
+            self.comparision_founded = False
+            self.checked_systems.append(self.ship_pos)
+            self.plot_route_from_csv[self.ship_pos]['done'] = 1
+            self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
+            self._short_presentation()
+            self._save_json()
+        if self.wake_gui or self.start_up:
+            self.start_up = False
+            self.wake_gui = False
+            self.root.deiconify()
+        if self.monitoring_route:
+            self.monitoring_route = False
+            self._check_pos()
+        if self.open_commodity:
+            self.open_commodity = False
+            smart_gui(commodity=self.port, mode=1, parent=self.root)
+        if self.commodity_error:
+            self.commodity_error = False
+            smart_gui(mode=4, parent=self.root)
+        if self.short_present:
+            self.short_present = False
+            self._short_presentation()
+        if self.check_commodity:
+            self.check_commodity = False
+            self._check_commodities(False, self.setted)
+        if self.close_thread:
+            smart_gui(cmdr=self.cmdr, parent=self.root)
+            self.root.after(3000, self.root.destroy)
+            return
         self.root.after(100, self._gui_loop)
 
     def check_entry_fields(self):
@@ -854,53 +898,13 @@ class PlotPyperClip:
         while True:
             if self.settings['use_local_database'] and self.processed == 0:
                 self.processed = 1
-                self.process = Process(target=Dswedrftgyhuji, args=(self.child_pipe, self.settings['stored_data'],
-                                                                    self.galactic_maps))
+                self.process = Process(target=Dswedrftgyhuji, args=(self.child_pipe, self.settings['stored_data']))
                 self.process.start()
                 threading.Thread(target=self._proccess_side_loop).start()
             if self.processed:
                 break
             if self.close_thread:
                 break
-            time.sleep(0.5)
-
-    def _main_loop(self):
-        print("MAIN LOOP STARTED")
-        self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
-        while True:
-            self.window_locker = (GetWindowText(GetForegroundWindow()))
-            if 'Elite - Dangerous (CLIENT)' in self.window_locker:
-                self.run_script = True
-            else:
-                self.run_script = False
-            if self.comparision_founded:
-                self.comparision_founded = False
-                self.checked_systems.append(self.ship_pos)
-                self.plot_route_from_csv[self.ship_pos]['done'] = 1
-                self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
-                self._short_presentation()
-                self._save_json()
-            if self.wake_gui or self.start_up:
-                self.start_up = False
-                self.wake_gui = False
-                self._gui()
-            if self.monitoring_route:
-                self.monitoring_route = False
-                self._check_pos()
-            if self.open_commodity:
-                self.open_commodity = False
-                smart_gui(commodity=self.port, mode=1)
-            if self.commodity_error:
-                self.commodity_error = False
-                smart_gui(mode=4)
-            if self.check_commodity:
-                self.check_commodity = False
-                self._check_commodities(False, self.setted)
-            if self.close_thread:
-                break
-            if self.run_short_presentation:
-                self.run_short_presentation = False
-                self._short_presentation()
             time.sleep(0.5)
 
     def run(self):
@@ -934,7 +938,7 @@ class PlotPyperClip:
             self._read_csv()
         self._compare_thread.start()
         self._define_next_system()
-        self._main_loop()
+        self._gui()
 
 
 if __name__ == '__main__':

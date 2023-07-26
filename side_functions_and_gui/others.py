@@ -1,10 +1,13 @@
-import os, math, pyperclip
+import os
+import math
+import pyperclip
 import tkinter as tk
 from settings.internal_data import info
 import re
 import requests
 from bs4 import BeautifulSoup
 import json
+from side_functions_and_gui import gui_bridge
 
 
 def help_():
@@ -15,9 +18,24 @@ def help_():
     os.startfile('info.txt')
 
 
-def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0):
+class Smart(tk.Toplevel):
+
+    def __init__(self, parent, my_text):
+        super().__init__(parent)
+        self.overrideredirect(True)
+        self.configure(bg='#0f090f')
+        self.wm_attributes("-transparentcolor", "#0f090f")
+        self.geometry('%dx%d+%d+%d' % (self.winfo_screenwidth(), self.winfo_screenwidth(), 0, 0))
+        self.wm_attributes("-topmost", 1)
+        self.wm_attributes("-alpha", 0.9)
+        tk.Label(self, text=my_text, font='Arial 18 bold', bg='#030305', fg='#f5af38').pack(fill='both', ipady=10)
+        self.after(3000, self.destroy)
+
+
+def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0, parent=None):
     """
     Triggered automatically or manually
+    :param parent: Main UI ancestor... whatever
     :param mode: with mode is trigerred
     :param cmdr: Your name CMDR
     :param commodity: Information about selected station for traiding
@@ -37,17 +55,8 @@ def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0):
         my_text = f'SYSTEM NOT DEFINED, SELECT NEW CSV ROUTE.'
     else:
         my_text = f'CONNECTION ERROR.'
-    root = tk.Tk()
-    root.overrideredirect(True)
-    root.configure(bg='#0f090f')
-    root.wm_attributes("-transparentcolor", "#0f090f")
-    root.geometry('%dx%d+%d+%d' % (root.winfo_screenwidth(), root.winfo_screenwidth(), 0, 0))
-    root.wm_attributes("-topmost", 1)
-    root.wm_attributes("-alpha", 0.9)
-    tk.Label(root, text=my_text, font='Arial 18 bold', bg='#030305', fg='#f5af38').pack(fill='both', ipady=10)
-    root.after(3000, root.destroy)
-    root.mainloop()
-
+    if parent is not None:
+        Smart(parent, my_text)
 
 def sel_item_action(event, widget, fast_close, root, double):
     try:
@@ -65,8 +74,9 @@ def sel_item_action(event, widget, fast_close, root, double):
             event.widget.master.b2.configure(state='normal')
             event.widget.master.b3.configure(state='normal')
         if fast_close and double:
-            event.widget.bind('<Double-1>', 'break')
-            root.after(100, root.destroy)
+            # event.widget.bind('<Double-1>', 'break')
+            root.after(100, root.withdraw)
+            gui_bridge.gui_started = False
             return
         pass
     except IndexError:
@@ -74,6 +84,14 @@ def sel_item_action(event, widget, fast_close, root, double):
         if master:
             event.widget.master.b2.configure(state='disabled')
             event.widget.master.b3.configure(state='disabled')
+    except AttributeError:
+        item = event.widget.selection()[0]
+        pyperclip.copy(item)
+        widget.configure(text=f'Selected Destination: {item}')
+        if fast_close and double:
+            # event.widget.bind('<Double-1>', 'break')
+            root.after(100, root.withdraw)
+            return
 
 
 def sizeof_fmt(num, suffix="B"):
@@ -98,7 +116,6 @@ def inara_req():
     with open(r'data/internal/inara_result.json', 'w') as j:
         json.dump(zbiory, j, indent=2)
         j.close()
-
 
 def save_config(path, data):
     with open(path, 'w') as json_manager:
