@@ -4,6 +4,7 @@ from PIL import Image, ImageTk
 import webbrowser
 from settings.internal_data import sites
 
+
 def _open_website(event, what):
     if what:
         link = event.widget.data

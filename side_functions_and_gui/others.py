@@ -2,7 +2,7 @@ import os
 import math
 import pyperclip
 import tkinter as tk
-from settings.internal_data import info
+from settings.internal_data import info, headers
 import re
 import requests
 from bs4 import BeautifulSoup
@@ -32,9 +32,11 @@ class Smart(tk.Toplevel):
         self.after(3000, self.destroy)
 
 
-def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0, parent=None):
+# noinspection PyTypeChecker
+def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0, parent=None, way=None):
     """
     Triggered automatically or manually
+    :param way: buying or selling
     :param parent: Main UI ancestor... whatever
     :param mode: with mode is trigerred
     :param cmdr: Your name CMDR
@@ -46,17 +48,27 @@ def smart_gui(commodity='', cmdr='', system='', d_data='', jumps='', mode=0, par
     if mode == 0:
         my_text = f'GOODBYE, CMDR. {cmdr}'
     elif mode == 1 and isinstance(commodity, list):
-        my_text = f'{commodity[0]} - {commodity[1]} - {commodity[3]} Cr.'
+        if way['way'] == 'selling':
+            my_text = f'{way["way"]} {way["what"]} | {commodity[0]} - {commodity[1]} - {commodity[3]} Cr.'
+        else:
+            my_text = f'{way["way"]} {way["what"]} | {commodity[0]} - {commodity[1]} - {commodity[4]} Cr.'
     elif mode == 2 and isinstance(d_data, dict):
         distance = math.ceil(float(d_data["data"][0]))
         remaining = math.ceil(float(d_data["data"][1]))
         my_text = f'{system} | DISTANCE - {distance} Ly | REMAINING - {remaining} Ly | APPROX JUMPS - {jumps}'
     elif mode == 3:
         my_text = f'SYSTEM NOT DEFINED, SELECT NEW CSV ROUTE.'
+    elif mode == 4:
+        if 'Sol' in way:
+            text = d_data["data"][3].replace("\n", "")
+        else:
+            text = d_data["data"][4].replace("\n", "")
+        my_text = f'Direction to: {way} | {system} | REMAINING - {text} Ly'
     else:
         my_text = f'CONNECTION ERROR.'
     if parent is not None:
         Smart(parent, my_text)
+
 
 def sel_item_action(event, widget, fast_close, root, double):
     try:
@@ -117,7 +129,26 @@ def inara_req():
         json.dump(zbiory, j, indent=2)
         j.close()
 
+
 def save_config(path, data):
     with open(path, 'w') as json_manager:
         json.dump(data, json_manager, indent=2)
         json_manager.close()
+
+
+def refresh_inara_comm():
+    link = r'https://inara.cz/elite/commodities/?pi1=2&pa1[]=186&ps1=Sol&pi10=3&pi11=0&pi3=1&pi9=0&pi4=0&pi5=720&pi12=0&pi7=0&pi8=0'
+    regrex = re.compile(r'value="([^"]+)"', re.I)
+    req = requests.get(link, headers).content
+    soup = BeautifulSoup(req, 'html.parser')
+    itemki = soup.find("select", {"id": "tokenizeitems"})
+    item = itemki.contents
+    tablica = {}
+    for items in item:
+        it = regrex.findall(str(items))
+        tablica[it[0]] = items.text
+
+    with open('data/internal/inara_result.json', 'w') as sav:
+        json.dump(tablica, sav, indent=2)
+        sav.close()
+    return tablica

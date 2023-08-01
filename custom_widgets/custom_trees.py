@@ -4,6 +4,17 @@ import math
 from side_functions_and_gui.others import sel_item_action, save_config
 from settings.internal_data import BOOKMARKS_JSON_FILE
 
+def sort_column(tree, column, reverse):
+    try:
+        local_list = [(float(tree.set(k, column)), k) for k in tree.get_children('')]
+    except Exception as e:
+        print('lol', e)
+        local_list = [(tree.set(k, column), k) for k in tree.get_children('')]
+    local_list.sort(reverse=reverse)
+    for index, (val, k) in enumerate(local_list):
+        tree.move(k, '', index)
+    tree.heading(column, command=lambda _col=column: sort_column(tree, _col, not reverse))
+
 
 class PlotTree(tk.Frame):
     def __init__(self, parent, plot, closing, ancestor):
@@ -13,16 +24,17 @@ class PlotTree(tk.Frame):
         label1 = ttk.Label(self, text='Selected Destination:', justify='left')
         label1.pack(fill='x', padx=10, ipady=5)
         columns = {0: 'No', 1: 'System Name', 2: 'Distance', 3: 'Remaining', 4: 'Jumps Required', 5: 'System Visited'}
-        column_size = [30, 200, 120, 120, 40]
+        column_size = [30, 200, 120, 120, 120, 120]
         row_no = [x for x, _ in columns.items()]
         self.treeview = ttk.Treeview(self, show='tree headings', columns=str(row_no),
                                      style="Mystyle.Treeview", name='plot')
         self.treeview.pack(side='left', fill='both', padx=1, pady=5)
         verscrlbar = ttk.Scrollbar(self, orient="vertical", command=self.treeview.yview)
         verscrlbar.pack(side='left', fill='y', padx=1, pady=5)
-        self.treeview.configure(height=21, yscrollcommand=verscrlbar.set)
+        self.treeview.configure(height=20, yscrollcommand=verscrlbar.set)
         self.treeview.column('#0', width=0)
-        [self.treeview.heading(x, text=y, anchor='w') for x, y in columns.items()]
+        for x, y in columns.items():
+            self.treeview.heading(x, text=y, anchor='w', command=lambda _c=x: sort_column(self.treeview, _c, False))
         [self.treeview.column(i, width=x, anchor='w') for i, x in enumerate(column_size)]
         self.treeview.bind('<<TreeviewSelect>>', lambda g: sel_item_action(g, label1, self.fast_close, ancestor, 0))
         self.treeview.bind('<Double-1>', lambda g: sel_item_action(g, label1, self.fast_close, ancestor, 1))
@@ -55,6 +67,59 @@ class PlotTree(tk.Frame):
                 print(e)
 
 
+class CCHTree(tk.Frame):
+    def __init__(self, parent, plot, closing, ancestor, direction):
+        super().__init__(parent)
+        self.fast_close = closing
+        self.plot = plot
+        label1 = ttk.Label(self, text='Selected Destination:', justify='left')
+        label1.pack(fill='x', padx=10, ipady=5)
+        columns = {0: 'No', 1: 'System Name', 2: 'Port Name', 3: 'Remaining', 4: 'System Visited'}
+        column_size = [30, 180, 180, 160, 160]
+        row_no = [x for x, _ in columns.items()]
+        self.treeview = ttk.Treeview(self, show='tree headings', columns=str(row_no),
+                                     style="Mystyle.Treeview", name='plot')
+        self.treeview.pack(side='left', fill='both', padx=1, pady=5)
+        verscrlbar = ttk.Scrollbar(self, orient="vertical", command=self.treeview.yview)
+        verscrlbar.pack(side='left', fill='y', padx=1, pady=5)
+        self.treeview.configure(height=22, yscrollcommand=verscrlbar.set)
+        self.treeview.column('#0', width=0)
+        for x, y in columns.items():
+            self.treeview.heading(x, text=y, anchor='w', command=lambda _c=x: sort_column(self.treeview, _c, False))
+        [self.treeview.column(i, width=x, anchor='w') for i, x in enumerate(column_size)]
+        self.treeview.bind('<<TreeviewSelect>>', lambda g: sel_item_action(g, label1, self.fast_close, ancestor, 0))
+        self.treeview.bind('<Double-1>', lambda g: sel_item_action(g, label1, self.fast_close, ancestor, 1))
+        for i, (parent, values) in enumerate(plot.items()):
+            try:
+                if direction:
+                    remaining = values["data"][4].replace('\n', '')
+                else:
+                    remaining = values["data"][3].replace('\n', '')
+                self.treeview.insert('', 'end', iid=parent, values=[i + 1, parent,
+                                                                    values['data'][0],
+                                                                    f"{remaining} Ly",
+                                                                    values['done']], open=False)
+            except tk.TclError as e:
+                print(e)
+
+    def update_tree(self, plot, direction):
+        self.plot = plot
+        for item in self.treeview.get_children():
+            self.treeview.delete(item)
+        for i, (parent, values) in enumerate(plot.items()):
+            try:
+                if direction:
+                    remaining = values["data"][4].replace('\n', '')
+                else:
+                    remaining = values["data"][3].replace('\n', '')
+                self.treeview.insert('', 'end', iid=parent, values=[i + 1, parent,
+                                                                    values['data'][0],
+                                                                    f"{remaining} Ly",
+                                                                    values['done']], open=False)
+            except tk.TclError as e:
+                print(e)
+
+
 class CommodityTree(tk.Frame):
     def __init__(self, parent, plot, closing, ancestor):
         super().__init__(parent)
@@ -71,9 +136,10 @@ class CommodityTree(tk.Frame):
         self.treeview.pack(side='left', fill='both', padx=1, pady=5)
         verscrlbar = ttk.Scrollbar(self, orient="vertical", command=self.treeview.yview)
         verscrlbar.pack(side='left', fill='y', padx=1, pady=5)
-        self.treeview.configure(height=18, yscrollcommand=verscrlbar.set)
+        self.treeview.configure(height=16, yscrollcommand=verscrlbar.set)
         self.treeview.column('#0', width=0)
-        [self.treeview.heading(x, text=y, anchor='w') for x, y in columns.items()]
+        for x, y in columns.items():
+            self.treeview.heading(x, text=y, anchor='w', command=lambda _c=x: sort_column(self.treeview, _c, False))
         [self.treeview.column(i, width=x, anchor='w') for i, x in enumerate(column_size)]
         self.treeview.bind('<<TreeviewSelect>>', lambda g: sel_item_action(g, label1, self.fast_close, ancestor, 0))
         self.treeview.bind('<Double-1>', lambda g: sel_item_action(g, label1, self.fast_close, ancestor, 1))
@@ -106,8 +172,10 @@ class SettingTree(tk.Frame):
         verscrlbar.pack(side='left', fill='y', padx=1, pady=5)
         self.treeview.configure(height=9, yscrollcommand=verscrlbar.set)
         self.treeview.column('#0', width=0)
-        [self.treeview.heading(x, text=y, anchor='w') for x, y in columns.items()]
+        for x, y in columns.items():
+            self.treeview.heading(x, text=y, anchor='w', command=lambda _c=x: sort_column(self.treeview, _c, False))
         [self.treeview.column(i, width=x, anchor='w') for i, x in enumerate(column_size)]
+        self.treeview.configure(height=7)
         self.update_tree(plot)
 
     def update_tree(self, plot):
@@ -123,36 +191,6 @@ class SettingTree(tk.Frame):
                     self.treeview.insert('', 'end', iid=parent, values=temp_list, open=False)
                 except tk.TclError as e:
                     print(e)
-
-
-class AddBookmark(tk.Toplevel):
-    def __init__(self, parent, combined_entry, position, mode, selected):
-        super().__init__(parent)
-        self.parent = parent
-        self.attributes('-topmost', 1)
-        self.grab_set()
-        self.title('Add Bookmark')
-        self.iconbitmap(r'favicon.ico')
-        f1 = ttk.Frame(self)
-        f1.pack(fill='x', padx=10, pady=10)
-        self.combined_entry = combined_entry(self, position, 'Location')
-        if mode == 1:
-            self.combined_entry.entry.delete(0, 'end')
-            self.combined_entry.entry.insert(0, selected[0])
-            self.combined_entry.entry.configure(state='disabled')
-            self.combined_entry.b1.configure(state='disabled')
-        self.text_entry = tk.Text(self, relief='solid')
-        self.text_entry.pack(fill='both', padx=10, pady=10)
-        f2 = ttk.Frame(self)
-        f2.pack(fill='x')
-        b1 = ttk.Button(f2, text='OK', command=lambda: self._send_to_parent(mode))
-        b1.pack(side='right', fill='x', padx=10, pady=10)
-
-    def _send_to_parent(self, mode):
-        if mode == 0:
-            self.parent.add_to_bookmark(self.combined_entry.entry.get(), self.text_entry.get(1.0, 'end'))
-        elif mode == 1:
-            self.parent.edit_bookmark(self.combined_entry.entry.get(), self.text_entry.get(1.0, 'end'))
 
 
 class AddBookmark(tk.Toplevel):
@@ -211,9 +249,10 @@ class BookmarkTree(tk.Frame):
         self.treeview.pack(side='left', fill='both', padx=1, pady=5)
         verscrlbar = ttk.Scrollbar(self, orient="vertical", command=self.treeview.yview)
         verscrlbar.pack(side='left', fill='y', padx=1, pady=5)
-        self.treeview.configure(height=9, yscrollcommand=verscrlbar.set)
+        self.treeview.configure(height=22, yscrollcommand=verscrlbar.set)
         self.treeview.column('#0', width=0)
-        [self.treeview.heading(x, text=y, anchor='w') for x, y in columns.items()]
+        for x, y in columns.items():
+            self.treeview.heading(x, text=y, anchor='w', command=lambda _c=x: sort_column(self.treeview, _c, False))
         [self.treeview.column(i, width=x, anchor='w') for i, x in enumerate(column_size)]
         self.treeview.bind('<<TreeviewSelect>>', lambda g: sel_item_action(g, label1, self.fast_close, ancestor, 0))
         self.treeview.bind('<Double-1>', lambda g: sel_item_action(g, label1, self.fast_close, ancestor, 1))

@@ -11,7 +11,8 @@ class CombinedMenu(tk.Frame):
         self.path = path
         self.f1 = ttk.Frame(parent)
         self.f1.pack(fill='both')
-        ttk.Label(self.f1, text=tekst, justify='left').pack(fill='both', side='left', padx=10)
+        self.t1 = ttk.Label(self.f1, text=tekst, justify='left')
+        self.t1.pack(fill='both', side='left', padx=10)
         self.b1 = ttk.Button(self.f1, text='...', command=lambda: self._select_action(command))
         self.b1.pack(side='right', padx=5)
         self.e1 = ttk.Entry(self.f1)
@@ -26,6 +27,16 @@ class CombinedMenu(tk.Frame):
         self.selected_log = path
         self.selected_csv = path
         self.selected_route = path
+
+    def set_disabled(self):
+        self.t1.configure(state='disabled')
+        self.b1.configure(state='disabled')
+        self.e1.configure(state='disabled')
+
+    def set_enabled(self):
+        self.t1.configure(state='enabled')
+        self.b1.configure(state='enabled')
+        self.e1.configure(state='enabled')
 
     # noinspection PyUnresolvedReferences
     def _pressed_entry(self, event):

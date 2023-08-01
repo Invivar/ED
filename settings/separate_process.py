@@ -13,7 +13,7 @@ class Dswedrftgyhuji(object):
     def _send_package(self):
         self.pipe_connection.send([self.galactic_maps, self.load_data])
 
-    def _operate(self, item, values):
+    def _operate(self, item, values):  # todo: jsony maja czasem strukture drzewkorza z kilkoma name trzeba to sprawdzic
         regrexf = re.compile(r'"name":"(?P<name>[^:",]*)",', re.I)
         regrex = re.compile(r'^.*"name":"(?P<name>[^:",]*)",', re.I)
         with open(values['path']) as maps:

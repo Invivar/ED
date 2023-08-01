@@ -9,5 +9,8 @@ class CombinedCombobox(tk.Frame):
         f1.pack(fill='x')
         ttk.Label(f1, text=tekst, justify='left').pack(label_set)
         self.combo = ttk.Combobox(f1, values=lista, state='readonly', width=50)
-        self.combo.set(current)
+        if current in lista:
+            self.combo.set(current)
+        else:
+            self.combo.set(lista[0])
         self.combo.pack(widget_set)

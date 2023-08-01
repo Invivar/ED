@@ -37,7 +37,7 @@ from side_functions_and_gui.others import help_, smart_gui, sizeof_fmt
 import mysql.connector
 import password
 import json
-from side_functions_and_gui import gui_bridge
+from side_functions_and_gui import gui_bridge, others
 
 windll.shcore.SetProcessDpiAwareness(1)
 windll.user32.ShowWindow(windll.kernel32.GetConsoleWindow(), 6)
@@ -57,17 +57,19 @@ def _setvar(opt):
 class SettingWidget(ttk.Frame):
     def __init__(self, parent, text, option):
         super().__init__(parent)
-        self.select = tk.Checkbutton(self, text=text, command=lambda: _setvar(option), name=option)  # rip ttk :<
+        self.boolvar = tk.BooleanVar()
+        self.select = ttk.Checkbutton(self, text=text, command=lambda: _setvar(option),
+                                      name=option, variable=self.boolvar)  # rip ttk :<
         if plot_route.settings[option]:
-            self.select.select()
+            self.boolvar.set(True)
         else:
-            self.select.deselect()
+            self.boolvar.set(False)
         if 'use_local_database' in option:
             temp_list = [x['in_use'] for x in plot_route.settings['stored_data'].values()]
             if any('Yes' in x for x in temp_list):
                 self.select.configure(state='normal')
             else:
-                self.select.deselect()
+                self.boolvar.set(False)
                 self.select.configure(state='disabled')
         self.select.pack(label_set)
         self.pack(fill='x')
@@ -141,8 +143,9 @@ class PartSettingFrame(tk.Frame):
         super().__init__(parent)
         self.c1 = SettingWidget(self, text='Use local database (json)', option='use_local_database')
         SettingWidget(self, text='Close after double click location', option='close_clipping')
-        SettingWidget(self, text='Copy CSV to App', option='copy_to_app')
-        SettingWidget(self, text='Inara Result In Short Commodity', option='use_inara')
+        # SettingWidget(self, text='Copy CSV to App', option='copy_to_app')
+        SettingWidget(self, text='Inara result in short commodity', option='use_inara')
+        self.c2 = SettingWidget(self, text='Use Colonia Connection Highway', option='use_cch')
         ttk.Separator(self, orient='horizontal').pack(fill='x', padx=5, pady=2)
         ShortCuts(self, text='Open Smart ED', shortcuts=plot_route.settings['shortcuts'], option='setting')
         ShortCuts(self, text='Copy Next PyPlotter', shortcuts=plot_route.settings['shortcuts'], option='next')
@@ -274,6 +277,13 @@ def save_config(path, data):
         json_manager.close()
 
 
+def _recreate(data):
+    if '-' in data:
+        data = str(data).split('-')[1].strip()
+    data = data.replace(',', '').strip()
+    return int(data)
+
+
 class PlotPyperClip:
 
     def __init__(self):
@@ -283,6 +293,7 @@ class PlotPyperClip:
         self.ship_pos_regrex = re.compile(SHIP_SYNTAX, re.I)
         self.cmdr_regrex = re.compile(UID_SYNTAX, re.I)
         self.log_path_is_safe = re.compile(SAFE_LOG_PATH_REQ, re.I)
+        self.inara_time = re.compile(INARA_SYNTAX, re.I)
 
         self._log_thread = threading.Thread(target=self._background_loop)
         self._keyboard_thread = threading.Thread(target=self._run_listener)
@@ -323,23 +334,28 @@ class PlotPyperClip:
         self.send_settings = False
         self.update_data_from_process = False
         self.updating = False
-        self.setted = False
         self.short_present = False
+        self.custom_event_1 = None
+        self.gui_closed = False
 
         self.processed = 0
 
-        self.galactic_maps = {}
+        self.galactic_maps = set()
         self.drogie = {}
         self.inara_comm = {}
+        self.empty_dict = {}
         self.plot_route_from_csv = {}
+        self.cch_route = {}
         self.settings = {'log_path': '',
                          'csv_path': '',
                          'json_path': '',
                          'data_base_file': '',
                          'cmdr': '',
+                         'CCHTC': True,
                          'use_local_database': False,
                          'close_clipping': False,
                          'use_inara': True,
+                         'use_cch': False,
                          'copy_to_app': False,
                          'stored_data': {},
                          'shortcuts': {'setting': 'Key.f2',
@@ -351,10 +367,230 @@ class PlotPyperClip:
                          'what': 'platinum',
                          'ref': 'omicron+capricorni+b',
                          'last': {}}
+        self.time_recalc = {0: 1, 1: 60, 2: 3600, 3: 86400}
         self.bookmarks = {}
 
         self.link = fr'http://edlegacy.iloveitmore.com.au/?action=' \
                     fr'{self.com_data["way"]}&commodity={self.com_data["what"]}&reference={self.com_data["ref"]}'
+
+    def _gui(self):
+        gui_bridge.gui_started = True
+        self.root = tk.Tk()
+        self.root.geometry('+%d+%d' % (10, 20))
+        self.root.protocol('WM_DELETE_WINDOW', self._ready)
+        self.root.withdraw()  # hide during loading all frames etc.
+        self.root.iconbitmap(r'favicon.ico')
+        self.root.attributes('-topmost', 1)
+        self.root.title('Smart ED Legacy')
+        self.root.resizable(False, False)
+
+        self.notebook = ttk.Notebook(self.root)
+        self.notebook.pack(padx=10, fill='both')
+
+        self.ntbkf_1 = ttk.Frame(self.notebook)
+        self.f1 = CombinedMenu(self.ntbkf_1, 'Select Log Folder', 1, self.settings['log_path'])
+        self.f1.pack()
+        self.f2 = CombinedMenu(self.ntbkf_1, 'Select CSV File', 2,
+                               self.settings['csv_path'])
+        self.f2.pack()
+        self.f3 = CombinedMenu(self.ntbkf_1, 'Select JSON  Neutron Route', 3,
+                               self.settings['json_path'])
+        self.f3.pack()
+        ttk.Separator(self.ntbkf_1, orient='horizontal').pack(fill='x', padx=5, pady=2)
+        self.settings_gui = PartSettingFrame(self.ntbkf_1)
+        self.settings_gui.pack(fill='x')
+        ttk.Separator(self.ntbkf_1, orient='horizontal').pack(fill='x', padx=5, pady=2)
+        self.f8 = PartSettingTree(self.ntbkf_1)
+        self.f8.pack(fill='x')
+        self.f7 = SettingTree(self.ntbkf_1, self.settings['stored_data'])
+        self.f7.treeview.bind('<<TreeviewSelect>>', lambda e: self.current_selection(e))
+        self.f7.treeview.bind('<Double-1>', lambda e: self.current_selection(e, True))
+        self.f7.pack(fill='x')
+        self.ntbkf_1.pack(fill='x')
+
+        self.ntbkf_2 = ttk.Frame(self.notebook)
+        self.ntbkf_2_notebook = ttk.Notebook(self.ntbkf_2)
+        self.ntbkf_2_legacy = ttk.Frame(self.ntbkf_2_notebook)
+        self.ntbkf_2_inara = ttk.Frame(self.ntbkf_2_notebook)
+        self.e1 = CombinedEntry(self.ntbkf_2, self.com_data["ref"], 'Select Start System')
+        self.e1.pack(fill='x')
+        self.c1 = CombinedCombobox(self.ntbkf_2, what, 'Action', self.com_data["way"])
+        self.c2 = CombinedCombobox(self.ntbkf_2_legacy, products_list, 'Product', self.com_data["what"])
+        self.c3 = CombinedCombobox(self.ntbkf_2_inara, [x for _, x in self.inara_comm.items()],
+                                   'Product', self.com_data["what"])
+        self.f5 = ttk.Frame(self.ntbkf_2)
+        self.f5.pack(fill='both')
+        self.button = ttk.Button(self.ntbkf_2_legacy, text='Check Price',
+                                 command=lambda: self._set_commodity(0))
+        self.button.pack(padx=5, pady=3, side='right')
+        self.butto2 = ttk.Button(self.ntbkf_2_inara, text='Check Price', command=lambda: self._set_commodity(1))
+        self.butto2.pack(padx=5, pady=3, side='right')
+        self.ntbkf_2_notebook.pack(padx=10, fill='both')
+        self.tree = CommodityTree(self.ntbkf_2, self.com_data["last"], self.settings['close_clipping'], self.root)
+        self.tree.pack(fill='both')
+        self.ntbkf_2_legacy.pack(fill='both')
+        self.ntbkf_2_inara.pack(fill='both')
+        self.ntbkf_2_notebook.add(self.ntbkf_2_legacy, text='Legacy')
+        self.ntbkf_2_notebook.add(self.ntbkf_2_inara, text='Inara')
+        self.ntbkf_2.pack()
+
+        self.ntbkf_3 = ttk.Frame(self.notebook)
+        t1 = f"Current Ship Position: {self.ship_pos}"
+        self.lab_ship_pos = ttk.Label(self.root, text=t1, justify='left')
+        self.lab_ship_pos.pack(fill='x', padx=10, ipady=5)
+        t2 = f"Next System: {self.next_system}"
+        self.next_system_lab = ttk.Label(self.ntbkf_3, text=t2, justify='left')
+        self.next_system_lab.pack(fill='x', padx=10, ipady=5)
+        t3 = f"Approx Jumps: {self.remaining}"
+        self.jumps_re_lab = ttk.Label(self.ntbkf_3, text=t3, justify='left')
+        self.jumps_re_lab.pack(fill='x', padx=10, ipady=5)
+        self.f6 = PlotTree(self.ntbkf_3, self.plot_route_from_csv, self.settings['close_clipping'], self.root)
+        self.f6.pack(fill='both')
+        self.ntbkf_3.pack()
+
+        self.ntbkf_4 = ttk.Frame(self.notebook)
+        pack = (self.ntbkf_4, self.bookmarks, self.settings['close_clipping'], self.root, CombinedEntry, self.ship_pos)
+        self.f9 = BookmarkTree(*pack)
+        self.f9.pack(fill='both')
+        self.ntbkf_4.pack()
+
+        self.ntbkf_5 = ttk.Frame(self.notebook)
+        self.shortcut_frame = CombinedFrame(self.ntbkf_5)
+        self.shortcut_frame.pack(fill='both')
+        self.ntbkf_5.pack()
+
+        self.ntbkf_6 = ttk.Frame(self.notebook)
+        f1 = ttk.Frame(self.ntbkf_6)
+        f1.pack(fill='both')
+        self.cch_button = ttk.Button(f1, command=self._cch_set_to, text='Direction')
+        self.cch_button.pack(side='left')
+        self.cch_label = ttk.Label(f1)
+        self.cch_label.pack(side='left', padx=10)
+        if self.settings['use_cch']:
+            if self.settings['CCHTC']:
+                self.cch_label.configure(text='Colonia')
+            else:
+                self.cch_label.configure(text='Sol')
+        else:
+            self.cch_label.configure(text='Switch Checkbox')
+        self.f10 = CCHTree(self.ntbkf_6, standard_highway, self.settings['close_clipping'], self.root,
+                           self.settings['CCHTC'])
+        self.f10.pack(fill='both')
+        self.ntbkf_6.pack()
+
+        self.notebook.add(self.ntbkf_1, text='Settings')
+        self.notebook.add(self.ntbkf_2, text='Commodity')
+        self.notebook.add(self.ntbkf_3, text='Current Travel')
+        self.notebook.add(self.ntbkf_6, text='CC Highway')
+        self.notebook.add(self.ntbkf_4, text='Bookmarks')
+        self.notebook.add(self.ntbkf_5, text='Usefull Sites')
+
+        self.f4 = ttk.Frame(self.root)
+        self.f4.pack(fill='both')
+        self.b1 = ttk.Button(self.f4, text='OK', command=self._ready)
+        self.b1.pack(padx=5, pady=5, side='right')
+        self.b2 = ttk.Button(self.f4, text='Finish JSON & CSV', command=self._delete)
+        self.b2.pack(padx=5, pady=5, side='right')
+        self.b4 = ttk.Button(self.f4, text='Copy Ship Pos', command=self._copy_position)
+        self.b4.pack(padx=5, pady=5, side='right')
+        self.b3 = ttk.Button(self.f4, text='Help', command=help_)
+        self.b3.pack(padx=5, pady=5, side='left')
+        self.info_label = tk.Label(self.f4)
+        self.info_label.pack(padx=5, pady=5, side='left')
+        self.root.after(0, self._gui_loop)
+        self.root.after(100, self.root.deiconify)  # return visibility after frames loads
+        self.root.mainloop()
+
+    def _gui_loop(self):
+        t1 = f"Current Ship Position: {self.ship_pos}"
+        t2 = f"Next System: {self.next_system}"
+        t3 = f"Approx Jumps: {self.remaining}"
+        self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
+        if t1 != self.lab_ship_pos.cget('text'):
+            self.lab_ship_pos.configure(text=t1)
+            self.next_system_lab.configure(text=t2)
+            self.jumps_re_lab.configure(text=t3)
+        if not gui_bridge.gui_started:
+            if not self.gui_closed:
+                self.gui_closed = True
+                self.root.after(0, self.root.withdraw)  # sie musi sam zamykac
+                self._ready()
+        else:
+            self.gui_closed = False
+        if self.updating:
+            text = 'Loading Local Maps'
+            if text != self.info_label.cget('text'):
+                self.info_label.configure(text=text)
+        if self.update_data_from_process:
+            text = 'Local Maps Loaded'
+            if text != self.info_label.cget('text'):
+                self.info_label.configure(text=text)
+            self.update_data_from_process = False
+            self.f7.update_tree(self.settings['stored_data'])
+        self.check_entry_fields()
+        self.window_locker = (GetWindowText(GetForegroundWindow()))
+        if 'Elite - Dangerous (CLIENT)' in self.window_locker:
+            self.run_script = True
+        else:
+            self.run_script = False
+        if self.comparision_founded and not self.settings['use_cch']:
+            self.comparision_founded = False
+            self.checked_systems.append(self.ship_pos)
+            self.plot_route_from_csv[self.ship_pos]['done'] = 1
+            self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
+            self._short_presentation()
+            self._save_json()
+            self.f6.update_tree(self.plot_route_from_csv)
+        elif self.comparision_founded and self.settings['use_cch']:
+            self.comparision_founded = False
+            self.checked_systems.append(self.ship_pos)
+            self.cch_route[self.ship_pos]['done'] = 1
+            self._short_presentation()
+            self._save_json()
+        if self.wake_gui or self.start_up:
+            self.start_up = False
+            self.wake_gui = False
+            self.root.deiconify()
+        if self.monitoring_route:
+            self.monitoring_route = False
+            self._check_pos()
+        if self.open_commodity:
+            self.open_commodity = False
+            smart_gui(commodity=self.port, mode=1, parent=self.root, way=self.com_data)
+        if self.commodity_error:
+            self.commodity_error = False
+            smart_gui(mode=5, parent=self.root)
+        if self.short_present:
+            self.short_present = False
+            self._short_presentation()
+        if self.check_commodity:
+            self.check_commodity = False
+            self._set_commodity(self.settings['use_inara'], False)
+        if self.settings_gui.c2.boolvar.get():
+            if self.custom_event_1 != 0:
+                self.custom_event_1 = 0
+                self.f2.set_disabled()
+                self.f3.set_disabled()
+                self.f6.update_tree(self.empty_dict)
+                self.f10.update_tree(self.cch_route, self.settings['CCHTC'])
+                if self.settings['CCHTC']:
+                    self.cch_label.configure(text='Colonia')
+                else:
+                    self.cch_label.configure(text='Sol')
+        else:
+            if self.custom_event_1 != 1:
+                self.custom_event_1 = 1
+                self.f2.set_enabled()
+                self.f3.set_enabled()
+                self.f6.update_tree(self.plot_route_from_csv)
+                self.f10.update_tree(self.empty_dict, self.settings['CCHTC'])
+                self.cch_label.configure(text='Switch Checkbox')
+        pass
+        if self.close_thread:
+            smart_gui(cmdr=self.cmdr, parent=self.root)
+            self.root.after(3000, self.root.destroy)
+            return
+        self.root.after(100, self._gui_loop)
 
     def _close_all(self):
         self.close_thread = True
@@ -367,6 +603,22 @@ class PlotPyperClip:
             if self.process.is_alive:
                 self.process.kill()
         exit()
+
+    def _cch_set_to(self):
+        if self.settings['use_cch']:
+            if self.settings['CCHTC']:
+                self.settings['CCHTC'] = False
+                self.cch_label.configure(text='Sol')
+                temp = [x for x in standard_highway.keys()]
+                temp.reverse()
+                self.cch_route = {x: standard_highway[x] for x in temp}
+                del temp
+            else:
+                self.settings['CCHTC'] = True
+                self.cch_label.configure(text='Colonia')
+                self.cch_route = dc(standard_highway)
+            self.f10.update_tree(self.cch_route, self.settings['CCHTC'])
+            self._save_json()
 
     def my_sql_connect(self):
         try:
@@ -420,7 +672,7 @@ class PlotPyperClip:
             if os.path.exists(self.settings['log_path']):
                 log_file = os.listdir(self.settings['log_path'])
                 self.newest_log_file = os.path.normpath(os.path.join(self.settings['log_path'], log_file[-1]))
-                with open(self.newest_log_file, 'r') as read_manager:
+                with open(self.newest_log_file) as read_manager:
                     self.log_content = read_manager.readlines()
                     self.log_content.reverse()
                     read_manager.close()
@@ -449,6 +701,7 @@ class PlotPyperClip:
     def _current_key(self, *args):
         self.current_k = str(args[0])
 
+    # noinspection PyTypeChecker
     def _check_pressed(self, *args):
         if str(args[0]) == self.settings['shortcuts']['setting']:
             if gui_bridge.gui_started:
@@ -484,9 +737,55 @@ class PlotPyperClip:
 
         return zwrot
 
+    def _legacy_com(self):
+        reorganizacja = {x[3]: y for y, x in self.com_data["last"].items()}
+        reorganizacja_ceny = sorted(x for x in reorganizacja.keys())
+        reorganizacja_ceny.reverse()
+        for price in reorganizacja_ceny[:5]:
+            miasto = reorganizacja[price]
+            self.drogie[self.com_data['last'][miasto][8]] = self.com_data['last'][miasto]
+        reorganizacja = sorted(self.drogie.keys())
+        if len(reorganizacja) > 0:
+            self.port = self.drogie[reorganizacja[0]]
+            pyperclip.copy(self.port[0])
+        else:
+            self.port = ['Empty results', 'Please change search settings in commodity section', '', 'None', 'None']
+        self.open_commodity = True
+
+    def _timelapse(self, datatime):
+        s = self.inara_time.findall(datatime)
+        num = re.findall('\d+', datatime, re.I)
+        numer = [i for i, x in enumerate(s[0]) if len(x) > 0]
+        numer = int(numer[0]) if len(numer) > 0 else None
+        my_time = 1000000000000000000000000000000000000
+        if numer is not None:
+            my_time = self.time_recalc[numer] * int(num[0])
+        return my_time
+
+    def _inara_com(self):
+        if self.com_data["way"] == 'selling':
+            reorganizacja = {_recreate(x[3]): y for y, x in self.com_data["last"].items()}
+        else:
+            reorganizacja = {_recreate(x[4]): y for y, x in self.com_data["last"].items()}
+        reorganizacja_ceny = sorted(x for x in reorganizacja.keys())
+        if self.com_data["way"] == 'selling':
+            reorganizacja_ceny.reverse()
+        for price in reorganizacja_ceny[:5]:
+            miasto = reorganizacja[price]
+            self.drogie[self._timelapse(self.com_data['last'][miasto][8])] = self.com_data['last'][miasto]
+        reorganizacja = sorted(self.drogie.keys())
+        if len(reorganizacja) > 0:
+            self.port = self.drogie[reorganizacja[0]]
+            pyperclip.copy(self.port[0])
+        else:
+            self.port = ['Empty results', 'Please change search settings in commodity section', '', 'None', 'None']
+        self.open_commodity = True
+
     def _check_commodities(self, manual, is_inara, way='0'):
         del self.com_data["last"]
+        del self.drogie
         self.com_data["last"] = {}
+        self.drogie = {}
         try:
             self.page_content = requests.get(self.link, headers=headers).content
         except Exception as e:
@@ -495,6 +794,10 @@ class PlotPyperClip:
             return False
         soup = BeautifulSoup(self.page_content, 'html.parser')
         tablica = soup.select('tbody')
+        if len(tablica) == 0:
+            self.port = ['Empty results', 'Please change search settings in commodity section', '', 'None', 'None']
+            self.open_commodity = True
+            return
         for markets in tablica[0].contents:
             # noinspection PyUnresolvedReferences
             coto = markets.contents
@@ -505,22 +808,22 @@ class PlotPyperClip:
             self.com_data["last"][lokalna_tablica[1]] = lokalna_tablica
         if manual:
             return
-        reorganizacja = sorted(self.com_data["last"].keys())
-        reorganizacja.reverse()
-        for price in reorganizacja[:5]:
-            self.drogie[self.com_data["last"][price][3]] = self.com_data["last"][price]
-        reorganizacja = sorted(self.drogie.keys())
-        self.port = self.drogie[reorganizacja[0]]
-        pyperclip.copy(self.port[0])
-        self.open_commodity = True
+        if not is_inara:
+            self._legacy_com()
+        else:
+            self._inara_com()
 
     def _short_presentation(self):
         self._define_next_system()
-        if self.next_system in self.plot_route_from_csv:
-            smart_gui(system=self.next_system, d_data=self.plot_route_from_csv[self.next_system],
-                      jumps=self.remaining, mode=2, parent=self.root)
+        if not self.settings['use_cch']:
+            if self.next_system in self.plot_route_from_csv:
+                smart_gui(system=self.next_system, d_data=self.plot_route_from_csv[self.next_system],
+                          jumps=self.remaining, mode=2, parent=self.root)
+            else:
+                smart_gui(mode=3, parent=self.root)
         else:
-            smart_gui(mode=3, parent=self.root)
+            smart_gui(system=self.next_system, d_data=self.cch_route[self.next_system], mode=4, parent=self.root,
+                      way=self.cch_label.cget('text'))
 
     def _read_json(self):
         with open(self.settings['json_path']) as json_manager:
@@ -529,25 +832,31 @@ class PlotPyperClip:
         print("JSON LOADED")
 
     def _save_json(self):
-        correct_name = False
-        if self.settings['json_path'] == '':
-            name = f"{os.path.splitext(os.path.basename(self.settings['csv_path']))[0]}.json"
-            self.settings['json_path'] = name
-            correct_name = True
-        elif not os.path.isfile(self.settings['json_path']):
-            name = f"{os.path.splitext(os.path.basename(self.settings['csv_path']))[0]}.json"
-            self.settings['json_path'] = name
-            correct_name = True
-        elif os.path.isfile(self.settings['json_path']):
-            correct_name = True
-        if correct_name and self.settings['json_path'] != '.json':
-            with open(self.settings['json_path'], 'w') as json_manager:
-                json.dump(self.plot_route_from_csv, json_manager, indent=2)
+        if not self.settings['use_cch']:
+            correct_name = False
+            if self.settings['json_path'] == '':
+                name = f"{os.path.splitext(os.path.basename(self.settings['csv_path']))[0]}.json"
+                self.settings['json_path'] = name
+                correct_name = True
+            elif not os.path.isfile(self.settings['json_path']):
+                name = f"{os.path.splitext(os.path.basename(self.settings['csv_path']))[0]}.json"
+                self.settings['json_path'] = name
+                correct_name = True
+            elif os.path.isfile(self.settings['json_path']):
+                correct_name = True
+            if correct_name and self.settings['json_path'] != '.json':
+                with open(self.settings['json_path'], 'w') as json_manager:
+                    json.dump(self.plot_route_from_csv, json_manager, indent=2)
+                    json_manager.close()
+                    print(f'PROGRESS SAVED')
+            else:
+                self.settings['json_path'] = ''
+                print(f'PROGRESS NOT SAVED, PLS CHECK PATH')
+        else:
+            with open(JSON_CCH, 'w') as json_manager:
+                json.dump(self.cch_route, json_manager, indent=2)
                 json_manager.close()
                 print(f'PROGRESS SAVED')
-        else:
-            self.settings['json_path'] = ''
-            print(f'PROGRESS NOT SAVED, PLS CHECK PATH')
 
     def _read_csv(self, force=False):
         csv_name = os.path.splitext(os.path.basename(self.settings['csv_path']))[0]
@@ -582,25 +891,41 @@ class PlotPyperClip:
         print('COMPARE LOOP STARTED')
         while True:
             if self.run_script:
-                if self.ship_pos in self.plot_route_from_csv.keys() and self.ship_pos not in self.checked_systems:
-                    self.comparision_founded = True
-                elif self.ship_pos in self.plot_route_from_csv.keys():
-                    self.monitoring_route = True
-                elif self.ship_pos not in self.plot_route_from_csv.keys() and self.ship_pos != self.last_system:
-                    self.validate_route = False
+                if not self.settings['use_cch']:
+                    if self.ship_pos in self.plot_route_from_csv.keys() and self.ship_pos not in self.checked_systems:
+                        self.comparision_founded = True
+                    elif self.ship_pos in self.plot_route_from_csv.keys():
+                        self.monitoring_route = True
+                    elif self.ship_pos not in self.plot_route_from_csv.keys() and self.ship_pos != self.last_system:
+                        self.validate_route = False
+                else:
+                    if self.ship_pos in self.cch_route.keys() and self.ship_pos not in self.checked_systems:
+                        self.comparision_founded = True
+                    elif self.ship_pos in self.cch_route.keys():
+                        self.monitoring_route = True
+                    elif self.ship_pos not in self.cch_route.keys() and self.ship_pos != self.last_system:
+                        self.validate_route = False
             if self.close_thread:
                 break
             time.sleep(0.5)
 
     def _define_next_system(self):
-
-        for system, values in self.plot_route_from_csv.items():
-            if values['done'] == 0:
-                self.next_system = system
-                print(f'NEW SYSTEM DEFINED - {system}')
-                break
-            else:
-                self.next_system = system
+        if not self.settings['use_cch']:
+            for system, values in self.plot_route_from_csv.items():
+                if values['done'] == 0:
+                    self.next_system = system
+                    print(f'NEW SYSTEM DEFINED - {system}')
+                    break
+                else:
+                    self.next_system = system
+        else:
+            for system, values in self.cch_route.items():
+                if values['done'] == 0:
+                    self.next_system = system
+                    print(f'NEW SYSTEM DEFINED - {system}')
+                    break
+                else:
+                    self.next_system = system
         pyperclip.copy(self.next_system)
 
     def load_custom_data(self):
@@ -644,155 +969,12 @@ class PlotPyperClip:
         self._read_csv()
         save_config(CONFIG_JSON_FILE, self.settings)
 
+    def _copy_position(self):
+        if self.ship_pos is not None:
+            pyperclip.copy(self.ship_pos)
+            self.info_label.configure(text=f'Location {self.ship_pos}, copied!')
+
     # noinspection PyAttributeOutsideInit
-    def _gui(self):
-        gui_bridge.gui_started = True
-        self.root = tk.Tk()
-        self.root.geometry('+%d+%d' % (10, 20))
-        self.root.protocol('WM_DELETE_WINDOW', self._ready)
-        self.root.withdraw()  # hide during loading all frames etc.
-        self.root.iconbitmap(r'favicon.ico')
-        self.root.attributes('-topmost', 1)
-        self.root.title('Smart ED Legacy')
-        self.root.resizable(False, False)
-
-        self.notebook = ttk.Notebook(self.root)
-        self.notebook.pack(padx=10, fill='both')
-
-        self.ntbkf_1 = ttk.Frame(self.notebook)
-        self.f1 = CombinedMenu(self.ntbkf_1, 'Select Log Folder', 1, self.settings['log_path'])
-        self.f1.pack()
-        self.f2 = CombinedMenu(self.ntbkf_1, 'Select CSV File', 2,
-                               self.settings['csv_path'])
-        self.f2.pack()
-        self.f3 = CombinedMenu(self.ntbkf_1, 'Select JSON  Neutron Route', 3,
-                               self.settings['json_path'])
-        self.f3.pack()
-        ttk.Separator(self.ntbkf_1, orient='horizontal').pack(fill='x', padx=5, pady=2)
-        self.settings_gui = PartSettingFrame(self.ntbkf_1)
-        self.settings_gui.pack(fill='x')
-        ttk.Separator(self.ntbkf_1, orient='horizontal').pack(fill='x', padx=5, pady=2)
-        self.f8 = PartSettingTree(self.ntbkf_1)
-        self.f8.pack(fill='x')
-        self.f7 = SettingTree(self.ntbkf_1, self.settings['stored_data'])
-        self.f7.treeview.bind('<<TreeviewSelect>>', lambda e: self.current_selection(e))
-        self.f7.treeview.bind('<Double-1>', lambda e: self.current_selection(e, True))
-        self.f7.pack(fill='x')
-        self.ntbkf_1.pack(fill='x')
-
-        self.ntbkf_2 = ttk.Frame(self.notebook)
-        self.e1 = CombinedEntry(self.ntbkf_2, self.com_data["ref"], 'Select Start System')
-        self.e1.pack(fill='x')
-        self.c1 = CombinedCombobox(self.ntbkf_2, what, 'Action', self.com_data["way"])
-        self.c1.pack(fill='x')
-        self.c2 = CombinedCombobox(self.ntbkf_2, products_list, 'Product', self.com_data["what"])
-        self.f5 = ttk.Frame(self.ntbkf_2)
-        self.f5.pack(fill='both')
-        self.button = ttk.Button(self.f5, text='Check Price (Legacy)', command=lambda: self._set_commodity(0))
-        self.button.pack(padx=5, pady=3, side='right')
-        self.butto2 = ttk.Button(self.f5, text='Check Price (Inara)', command=lambda: self._set_commodity(1))
-        self.butto2.pack(padx=5, pady=3, side='right')
-        self.tree = CommodityTree(self.ntbkf_2, self.com_data["last"], self.settings['close_clipping'], self.root)
-        self.tree.pack(fill='both')
-        self.ntbkf_2.pack()
-
-        self.ntbkf_3 = ttk.Frame(self.notebook)
-        t1 = f"Current Ship Position: {self.ship_pos}"
-        self.lab_ship_pos = ttk.Label(self.root, text=t1, justify='left')
-        self.lab_ship_pos.pack(fill='x', padx=10, ipady=5)
-        t2 = f"Next System: {self.next_system}"
-        ttk.Label(self.ntbkf_3, text=t2, justify='left').pack(fill='x', padx=10, ipady=5)
-        t3 = f"Approx Jumps: {self.remaining}"
-        ttk.Label(self.ntbkf_3, text=t3, justify='left').pack(fill='x', padx=10, ipady=5)
-        self.f6 = PlotTree(self.ntbkf_3, self.plot_route_from_csv, self.settings['close_clipping'], self.root)
-        self.f6.pack(fill='both')
-        self.ntbkf_3.pack()
-
-        self.ntbkf_4 = ttk.Frame(self.notebook)
-        pack = (self.ntbkf_4, self.bookmarks, self.settings['close_clipping'], self.root, CombinedEntry, self.ship_pos)
-        self.f9 = BookmarkTree(*pack)
-        self.f9.pack(fill='both')
-        self.ntbkf_4.pack()
-
-        self.ntbkf_5 = ttk.Frame(self.notebook)
-        self.shortcut_frame = CombinedFrame(self.ntbkf_5)
-        self.shortcut_frame.pack(fill='both')
-        self.ntbkf_5.pack()
-
-        self.notebook.add(self.ntbkf_1, text='Settings')
-        self.notebook.add(self.ntbkf_2, text='Commodity')
-        self.notebook.add(self.ntbkf_3, text='Current Travel')
-        self.notebook.add(self.ntbkf_4, text='Bookmarks')
-        self.notebook.add(self.ntbkf_5, text='Usefull Sites')
-
-        self.f4 = ttk.Frame(self.root)
-        self.f4.pack(fill='both')
-        self.b1 = ttk.Button(self.f4, text='OK', command=self._ready)
-        self.b1.pack(padx=5, pady=5, side='right')
-        self.b2 = ttk.Button(self.f4, text='Finish JSON & CSV', command=self._delete)
-        self.b2.pack(padx=5, pady=5, side='right')
-        self.b3 = ttk.Button(self.f4, text='Help', command=help_)
-        self.b3.pack(padx=5, pady=5, side='left')
-        self.info_label = tk.Label(self.f4)
-        self.info_label.pack(padx=5, pady=5, side='left')
-        self.root.after(0, self._gui_loop)
-        self.root.after(100, self.root.deiconify)  # return visibility after frames loads
-        self.root.mainloop()
-
-    def _gui_loop(self):
-        t1 = f"Current Ship Position: {self.ship_pos}"
-        if t1 != self.lab_ship_pos.cget('text'):
-            self.lab_ship_pos.configure(text=t1)
-        if not gui_bridge.gui_started:
-            self.root.after(0, self.root.withdraw)  # sie musi sam zamykac
-        if self.updating:
-            text = 'Loading Local Maps'
-            if text != self.info_label.cget('text'):
-                self.info_label.configure(text=text)
-        if self.update_data_from_process:
-            text = 'Local Maps Loaded'
-            if text != self.info_label.cget('text'):
-                self.info_label.configure(text=text)
-            self.update_data_from_process = False
-            self.f7.update_tree(self.settings['stored_data'])
-        self.check_entry_fields()
-        self.window_locker = (GetWindowText(GetForegroundWindow()))
-        if 'Elite - Dangerous (CLIENT)' in self.window_locker:
-            self.run_script = True
-        else:
-            self.run_script = False
-        if self.comparision_founded:
-            self.comparision_founded = False
-            self.checked_systems.append(self.ship_pos)
-            self.plot_route_from_csv[self.ship_pos]['done'] = 1
-            self.remaining = sum([int(x['data'][-1]) for x in self.plot_route_from_csv.values() if x['done'] == 0])
-            self._short_presentation()
-            self._save_json()
-        if self.wake_gui or self.start_up:
-            self.start_up = False
-            self.wake_gui = False
-            self.root.deiconify()
-        if self.monitoring_route:
-            self.monitoring_route = False
-            self._check_pos()
-        if self.open_commodity:
-            self.open_commodity = False
-            smart_gui(commodity=self.port, mode=1, parent=self.root)
-        if self.commodity_error:
-            self.commodity_error = False
-            smart_gui(mode=4, parent=self.root)
-        if self.short_present:
-            self.short_present = False
-            self._short_presentation()
-        if self.check_commodity:
-            self.check_commodity = False
-            self._check_commodities(False, self.setted)
-        if self.close_thread:
-            smart_gui(cmdr=self.cmdr, parent=self.root)
-            self.root.after(3000, self.root.destroy)
-            return
-        self.root.after(100, self._gui_loop)
-
     def check_entry_fields(self):
         text1 = self.f2.e1.get()
         text2 = self.f3.e1.get()
@@ -806,6 +988,7 @@ class PlotPyperClip:
             self.f3.e1.insert(0, self.settings['json_path'])
             self.f6.update_tree(self.plot_route_from_csv)
 
+    # noinspection PyTypeChecker,PyUnresolvedReferences
     def current_selection(self, event, double=False):
         if double:
             try:
@@ -818,7 +1001,7 @@ class PlotPyperClip:
                 if any('Yes' in x for x in temp_list):
                     self.settings_gui.c1.select.configure(state='normal')
                 else:
-                    self.settings_gui.c1.select.deselect()
+                    self.settings_gui.c1.boolvar.set(False)
                     self.settings_gui.c1.select.configure(state='disabled')
                     self.settings['use_local_database'] = False
                 save_config(CONFIG_JSON_FILE, self.settings)
@@ -843,10 +1026,13 @@ class PlotPyperClip:
                 return number
         return False
 
-    def _set_commodity(self, inara_request):
+    def _set_commodity(self, inara_request, emanuel=True):
         way = '0'
         self.com_data["way"] = self.c1.combo.get()
-        self.com_data["what"] = self.c2.combo.get()
+        if inara_request:
+            self.com_data["what"] = self.c3.combo.get()
+        else:
+            self.com_data["what"] = self.c2.combo.get()
         if len(self.e1.entry.get()) > 0:
             self.com_data["ref"] = self.e1.entry.get().replace(' ', '+')
         if inara_request:
@@ -861,7 +1047,7 @@ class PlotPyperClip:
         else:
             self.link = fr'http://edlegacy.iloveitmore.com.au/?action={self.com_data["way"]}&commodity=' \
                         fr'{self.com_data["what"]}&reference={self.com_data["ref"]}'
-        self._check_commodities(True, inara_request, way)
+        self._check_commodities(emanuel, inara_request, way)
         save_config(LAST_COMMODITY_FILE, self.com_data)
         self.tree.update_tree(self.com_data["last"])
 
@@ -898,7 +1084,8 @@ class PlotPyperClip:
         while True:
             if self.settings['use_local_database'] and self.processed == 0:
                 self.processed = 1
-                self.process = Process(target=Dswedrftgyhuji, args=(self.child_pipe, self.settings['stored_data']))
+                self.process = Process(target=Dswedrftgyhuji,
+                                       args=(self.child_pipe, self.settings['stored_data'], self.galactic_maps))
                 self.process.start()
                 threading.Thread(target=self._proccess_side_loop).start()
             if self.processed:
@@ -928,7 +1115,12 @@ class PlotPyperClip:
         if os.path.exists(INARA):
             self.inara_comm = _load_config(INARA)
         else:
-            save_config(INARA, self.inara_comm)
+            self.inara_comm = others.refresh_inara_comm()
+        if os.path.exists(JSON_CCH):
+            self.cch_route = _load_config(JSON_CCH)
+        else:
+            self.cch_route = dc(standard_highway)
+            save_config(JSON_CCH, self.cch_route)
         self._once_pipe_loop.start()
         self._keyboard_thread.start()
         self._log_thread.start()
